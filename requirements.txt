@@ -1,10 +1,9 @@
-streamlit
-earthengine-api
-geopandas
-shapely
-python-dateutil
-matplotlib
+dash==2.17.1
+plotly>=5.22.0
+xarray
 pandas
-folium
-streamlit-folium
+numpy
+geopandas
 fiona
+shapely>=2.0
+pyproj
