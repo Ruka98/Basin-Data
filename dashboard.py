@@ -851,10 +851,17 @@ app.layout = html.Div(
                 style=MODERN_STYLES["card"],
                 children=[
                     html.H3("🗺️ Land Use / Land Cover", style=MODERN_STYLES["section_title"]),
-                    dcc.Loading(
-                        dcc.Graph(id="lu-map-graph"),
-                        type="circle"
-                    )
+                    html.Div([
+                        html.Div(
+                            dcc.Loading(dcc.Graph(id="lu-map-graph"), type="circle"),
+                            style={"width": "48%", "display": "inline-block", "padding": "10px"}
+                        ),
+                        html.Div(
+                            dcc.Loading(dcc.Graph(id="lu-bar-graph"), type="circle"),
+                            style={"width": "48%", "display": "inline-block", "padding": "10px", "float": "right"}
+                        ),
+                    ]),
+                    html.Div(id="lu-explanation", style={"marginTop": "15px", "padding": "15px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "color": "#475569", "fontSize": "14px", "lineHeight": "1.6"})
                 ]
             ),
 
@@ -1362,17 +1369,17 @@ def update_et_outputs(basin, start_year, end_year):
     return _hydro_figs(basin, start_year, end_year, "ET")
 
 @app.callback(
-    Output("lu-map-graph", "figure"),
+    [Output("lu-map-graph", "figure"), Output("lu-bar-graph", "figure"), Output("lu-explanation", "children")],
     [Input("basin-dropdown", "value")],
 )
 def update_lu_map(basin):
-    """Show static land use map for the latest available year"""
+    """Show static land use map for the latest available year and a bar chart of top 5 classes"""
     if basin == "all" or not basin:
-        return _empty_fig("Select a specific basin to view land use data.")
+        return _empty_fig("Select a specific basin to view land use data."), _empty_fig("Select a specific basin."), ""
 
     lu_fp = find_nc_file(basin, "LU")
     if not lu_fp:
-        return _empty_fig("Land Use data not found for this basin.")
+        return _empty_fig("Land Use data not found for this basin."), _empty_fig(), "Data missing."
     
     try:
         with _open_xr_dataset(lu_fp) as ds:
@@ -1386,13 +1393,14 @@ def update_lu_map(basin):
 
     da, _, msg = load_and_process_data(basin, "LU", year_start=latest_year, year_end=latest_year)
     if da is None:
-        return _empty_fig(f"Land Use data not available: {msg or ''}")
+        return _empty_fig(f"Land Use data not available: {msg or ''}"), _empty_fig(), "Data unavailable."
 
     vals = np.asarray(da.values)
     finite_vals = vals[np.isfinite(vals)]
     if finite_vals.size == 0:
-        return _empty_fig("No valid land use classes found")
+        return _empty_fig("No valid land use classes found"), _empty_fig(), "No valid data."
 
+    # --- MAP GENERATION ---
     class_list = sorted(np.unique(finite_vals).astype(int).tolist())
     x = np.asarray(da["longitude"].values)
     y = np.asarray(da["latitude"].values)
@@ -1440,7 +1448,70 @@ def update_lu_map(basin):
         paper_bgcolor='rgba(0,0,0,0)'
     )
     fig_map = add_shapefile_to_fig(fig_map, basin)
-    return fig_map
+
+    # --- BAR CHART & EXPLANATION GENERATION ---
+    try:
+        unique, counts = np.unique(finite_vals, return_counts=True)
+        total_pixels = counts.sum()
+
+        # Create DataFrame for easier sorting
+        lu_stats = []
+        for u, c in zip(unique, counts):
+            cid = int(u)
+            cname = class_info.get(cid, {"name": f"Class {cid}"})["name"]
+            ccolor = class_info.get(cid, {"color": "gray"})["color"]
+            pct = (c / total_pixels) * 100
+            lu_stats.append({"class_id": cid, "class_name": cname, "percentage": pct, "color": ccolor})
+
+        df_lu = pd.DataFrame(lu_stats)
+        df_lu = df_lu.sort_values("percentage", ascending=False)
+
+        # Top 5
+        top5 = df_lu.head(5)
+
+        # Bar Chart
+        fig_bar = px.bar(
+            top5,
+            x="percentage",
+            y="class_name",
+            orientation='h',
+            title=f"Top 5 Land Use Types ({actual_year})",
+            labels={"percentage": "Coverage (%)", "class_name": "Land Use Type"},
+            text="percentage"
+        )
+
+        fig_bar.update_traces(
+            marker_color=top5["color"].tolist(),
+            texttemplate='%{text:.1f}%',
+            textposition='outside'
+        )
+
+        fig_bar.update_layout(
+            yaxis={'categoryorder':'total ascending'}, # ensure sorted order in visual
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(color="#1e293b"),
+            margin=dict(l=10, r=20, t=40, b=10)
+        )
+
+        # Explanation
+        top_names = top5["class_name"].tolist()
+        top_pcts = top5["percentage"].tolist()
+
+        explanation_items = [f"**{name}** ({pct:.1f}%)" for name, pct in zip(top_names, top_pcts)]
+        explanation_str = ", ".join(explanation_items)
+
+        explanation = (f"**Land Use Analysis ({actual_year}):** "
+                       f"The most dominant land use type in the basin is **{top_names[0]}**, covering **{top_pcts[0]:.1f}%** of the area. "
+                       f"Other significant land use types include {', '.join(explanation_items[1:])}. "
+                       f"This distribution reflects the basin's ecological and anthropogenic characteristics.")
+
+    except Exception as e:
+        print(f"Error generating LU bar/stats: {e}")
+        fig_bar = _empty_fig("Error calculating statistics")
+        explanation = "Error generating explanation."
+
+    return fig_map, fig_bar, dcc.Markdown(explanation)
 
 @app.callback(
     [Output("p-et-map-graph", "figure"), Output("p-et-bar-graph", "figure"), Output("p-et-explanation", "children")],
