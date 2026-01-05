@@ -98,6 +98,17 @@ def find_shp_file(basin_name: str):
 # BASIN OVERVIEW UTILITIES
 # ======================
 
+def read_basin_intro(basin_name: str) -> str:
+    """Read the introduction text for a basin."""
+    intro_path = os.path.join(BASIN_DIR, basin_name, "intro.txt")
+    if os.path.exists(intro_path):
+        try:
+            with open(intro_path, 'r') as f:
+                return f.read()
+        except Exception as e:
+            print(f"Error reading intro file: {e}")
+    return ""
+
 def find_yearly_csv(basin_name: str, year: int):
     """Find yearly CSV file for a basin and year."""
     results_dir = os.path.join(BASIN_DIR, basin_name, "Results", "yearly")
@@ -156,7 +167,9 @@ def parse_basin_overview(csv_file: str):
             
             # Total landscape water consumption (sum of all ET)
             if class_val == 'OUTFLOW' and 'ET' in subclass:
-                metrics['total_water_consumption'] = metrics.get('total_water_consumption', 0) + value
+                # Exclude Manmade and Consumed Water to avoid double counting or mismatch with user expectations
+                if variable not in ['Manmade', 'Consumed Water']:
+                    metrics['total_water_consumption'] = metrics.get('total_water_consumption', 0) + value
             
             # Manmade water consumption
             if (class_val == 'OUTFLOW' and subclass == 'ET INCREMENTAL' and 
@@ -859,7 +872,8 @@ app.layout = html.Div(
                             dcc.Loading(dcc.Graph(id="p-bar-graph"), type="circle"),
                             style={"width": "48%", "display": "inline-block", "padding": "10px", "float": "right"}
                         ),
-                    ])
+                    ]),
+                    html.Div(id="p-explanation", style={"marginTop": "15px", "padding": "15px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "color": "#475569", "fontSize": "14px", "lineHeight": "1.6"})
                 ]
             ),
 
@@ -877,7 +891,8 @@ app.layout = html.Div(
                             dcc.Loading(dcc.Graph(id="et-bar-graph"), type="circle"),
                             style={"width": "48%", "display": "inline-block", "padding": "10px", "float": "right"}
                         ),
-                    ])
+                    ]),
+                    html.Div(id="et-explanation", style={"marginTop": "15px", "padding": "15px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "color": "#475569", "fontSize": "14px", "lineHeight": "1.6"})
                 ]
             ),
 
@@ -895,7 +910,8 @@ app.layout = html.Div(
                             dcc.Loading(dcc.Graph(id="p-et-bar-graph"), type="circle"),
                             style={"width": "48%", "display": "inline-block", "padding": "10px", "float": "right"}
                         ),
-                    ])
+                    ]),
+                    html.Div(id="p-et-explanation", style={"marginTop": "15px", "padding": "15px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "color": "#475569", "fontSize": "14px", "lineHeight": "1.6"})
                 ]
             ),
         ]),
@@ -1026,6 +1042,33 @@ def update_basin_overview(basin, start_year, end_year):
                 style={"textAlign": "center", "color": "#64748b", "padding": "40px"}
             )
         
+        # Read intro text
+        intro_text = read_basin_intro(basin)
+
+        # Format values for summary
+        total_inflows = f"{metrics.get('total_inflows', 0):.0f}"
+        precip_pct = f"{metrics.get('precipitation_percentage', 0):.0f}"
+        imports = f"{metrics.get('surface_water_imports', 0):.0f}"
+        total_consumption = f"{metrics.get('total_water_consumption', 0):.0f}"
+        manmade_consumption = f"{metrics.get('manmade_consumption', 0):.0f}"
+        treated_wastewater = f"{metrics.get('treated_wastewater', 0):.0f}"
+        non_irrigated = f"{metrics.get('non_irrigated_consumption', 0):.0f}"
+        recharge = f"{metrics.get('recharge', 0):.0f}"
+
+        year_range_str = f"{start_year}" if start_year == end_year else f"{start_year}–{end_year}"
+
+        # Create dynamic summary using the requested template
+        summary_items = [
+            f"The total water inflows into the {basin} basin in {year_range_str} is {total_inflows} Mm3/ year.",
+            f"Precipitation accounts for {precip_pct}% of the gross inflows and the remaining from imports for domestic purposes.",
+            f"{imports} Mm3/ year of water is imported into the basin for domestic use.",
+            f"The total landscape water consumption is {total_consumption} Mm3/ year.",
+            f"The manmade water consumption is {manmade_consumption} Mm3/ year",
+            f"About {treated_wastewater} Mm3/ year of treated wastewater that is discharged to streams.",
+            f"The average sectorial non-irrigated water consumption is {non_irrigated} Mm3/ year.",
+            f"On average {recharge} Mm3/ year recharged the basin."
+        ]
+
         # Create modern metric cards
         metric_cards = []
         
@@ -1162,11 +1205,32 @@ def update_basin_overview(basin, start_year, end_year):
         
         # Create a responsive grid layout
         return html.Div([
+            # Intro Section
+            html.Div([
+                html.H4(f"Introduction to {basin} Basin",
+                       style={"color": "#1e293b", "marginBottom": "10px", "fontSize": "20px"}),
+                html.P(intro_text, style={"color": "#475569", "fontSize": "16px", "lineHeight": "1.6"})
+            ], style={"marginBottom": "30px", "padding": "20px", "backgroundColor": "white", "borderRadius": "8px", "border": "1px solid #e2e8f0"}) if intro_text else None,
+
             html.Div([
                 html.H4(f"Water Balance Overview - {start_year} to {end_year} Average", 
                        style={"color": "#1e293b", "marginBottom": "20px", "fontSize": "20px"})
             ], style={"width": "100%", "marginBottom": "15px"}),
             
+            # Dynamic Summary Section
+            html.Div([
+                html.H5("💡 Executive Summary", style={"color": "#1e293b", "marginBottom": "15px", "fontSize": "18px"}),
+                html.Ul([
+                    html.Li(item, style={"marginBottom": "8px"}) for item in summary_items
+                ], style={"color": "#475569", "fontSize": "16px", "lineHeight": "1.6"})
+            ], style={
+                "backgroundColor": "#f8fafc",
+                "borderRadius": "8px",
+                "padding": "20px",
+                "marginBottom": "25px",
+                "borderLeft": "4px solid #3b82f6"
+            }),
+
             html.Div(
                 metric_cards,
                 style={
@@ -1175,23 +1239,7 @@ def update_basin_overview(basin, start_year, end_year):
                     "gap": "15px",
                     "width": "100%"
                 }
-            ),
-            
-            # Additional insights
-            html.Div([
-                html.H5("💡 Key Insights", style={"color": "#1e293b", "marginBottom": "15px", "fontSize": "16px"}),
-                html.Ul([
-                    html.Li(f"Precipitation accounts for {metrics.get('precipitation_percentage', 0):.1f}% of total inflows"),
-                    html.Li(f"Manmade water consumption represents {((metrics.get('manmade_consumption', 0) / metrics.get('total_water_consumption', 1)) * 100):.1f}% of total water consumption"),
-                    html.Li(f"Treated wastewater accounts for {((metrics.get('treated_wastewater', 0) / max(metrics.get('total_inflows', 1), 1)) * 100):.1f}% of total inflows")
-                ], style={"color": "#64748b", "lineHeight": "1.6"})
-            ], style={
-                "backgroundColor": "#f8fafc",
-                "borderRadius": "8px",
-                "padding": "20px",
-                "marginTop": "20px",
-                "borderLeft": "4px solid #3b82f6"
-            })
+            )
         ])
         
     except Exception as e:
@@ -1201,11 +1249,41 @@ def update_basin_overview(basin, start_year, end_year):
             style={"textAlign": "center", "color": "#ef4444", "padding": "40px"}
         )
 
+def _generate_explanation(vtype: str, basin: str, start_year: int, end_year: int, y_vals: np.ndarray, months: list):
+    """Generate a dynamic explanation for the hydro graphs."""
+    if len(y_vals) == 0 or not np.any(np.isfinite(y_vals)):
+        return "No sufficient data to generate an explanation."
+
+    mean_val = np.nanmean(y_vals)
+    max_val = np.nanmax(y_vals)
+    min_val = np.nanmin(y_vals)
+    max_month = months[np.nanargmax(y_vals)]
+    min_month = months[np.nanargmin(y_vals)]
+
+    if vtype == "P":
+        return (f"**Precipitation Analysis ({start_year}–{end_year}):** "
+                f"The average monthly precipitation across the {basin} basin is **{mean_val:.2f} mm**. "
+                f"The wettest month is typically **{max_month}** with an average of **{max_val:.2f} mm**, "
+                f"while the driest month is **{min_month}** with **{min_val:.2f} mm**. "
+                f"This seasonal pattern indicates the primary rainy season and dry periods, essential for water resource planning.")
+    elif vtype == "ET":
+        return (f"**Evapotranspiration Analysis ({start_year}–{end_year}):** "
+                f"The average monthly evapotranspiration is **{mean_val:.2f} mm**. "
+                f"Peak water consumption occurs in **{max_month}** (**{max_val:.2f} mm**), likely driven by higher temperatures and vegetation growth. "
+                f"The lowest rates are observed in **{min_month}** (**{min_val:.2f} mm**).")
+    elif vtype == "P-ET":
+        status = "positive water yield" if mean_val > 0 else "water deficit"
+        return (f"**Water Balance Analysis ({start_year}–{end_year}):** "
+                f"The basin shows an average monthly {status} of **{mean_val:.2f} mm**. "
+                f"The maximum surplus occurs in **{max_month}** (**{max_val:.2f} mm**), representing potential recharge or runoff periods. "
+                f"The maximum deficit occurs in **{min_month}** (**{min_val:.2f} mm**), indicating periods where consumption exceeds precipitation.")
+    return ""
+
 def _hydro_figs(basin: str, start_year: int | None, end_year: int | None, vtype: str):
     if basin == "all" or not basin:
-        return _empty_fig("Select a specific basin to view data."), _empty_fig("Select a specific basin to view data.")
+        return _empty_fig("Select a specific basin to view data."), _empty_fig("Select a specific basin to view data."), ""
     if start_year is None or end_year is None:
-        return _empty_fig("Select year range."), _empty_fig("Select year range.")
+        return _empty_fig("Select year range."), _empty_fig("Select year range."), ""
 
     ys, ye = int(start_year), int(end_year)
     if ys > ye:
@@ -1213,7 +1291,7 @@ def _hydro_figs(basin: str, start_year: int | None, end_year: int | None, vtype:
 
     da_ts, _, msg = load_and_process_data(basin, vtype, year_start=ys, year_end=ye, aggregate_time=False)
     if da_ts is None or da_ts.sizes.get("time", 0) == 0:
-        return _empty_fig(f"{vtype} data unavailable: {msg or ''}"), _empty_fig()
+        return _empty_fig(f"{vtype} data unavailable: {msg or ''}"), _empty_fig(), f"Data unavailable for {vtype}."
 
     da_map = da_ts.mean(dim="time", skipna=True)
     
@@ -1238,6 +1316,8 @@ def _hydro_figs(basin: str, start_year: int | None, end_year: int | None, vtype:
 
     spatial_dims = [d for d in ["latitude", "longitude"] if d in da_ts.dims]
     spatial_mean_ts = da_ts.mean(dim=spatial_dims, skipna=True)
+    explanation = ""
+
     try:
         monthly = spatial_mean_ts.groupby("time.month").mean(skipna=True).rename({"month": "Month"})
         months = [pd.to_datetime(m, format="%m").strftime("%b") for m in monthly["Month"].values]
@@ -1253,14 +1333,18 @@ def _hydro_figs(basin: str, start_year: int | None, end_year: int | None, vtype:
                 paper_bgcolor='rgba(0,0,0,0)',
                 font=dict(color="#1e293b")
             )
+            explanation = _generate_explanation(vtype, basin, ys, ye, y_vals, months)
         else:
             fig_bar = _empty_fig(f"No valid monthly data for {vtype} in {ys}–{ye}.")
+            explanation = "No valid data to generate explanation."
     except Exception:
         fig_bar = _empty_fig(f"No monthly grouping available for {vtype}.")
-    return fig_map, fig_bar
+        explanation = "Error generating explanation."
+
+    return fig_map, fig_bar, dcc.Markdown(explanation)
 
 @app.callback(
-    [Output("p-map-graph", "figure"), Output("p-bar-graph", "figure")],
+    [Output("p-map-graph", "figure"), Output("p-bar-graph", "figure"), Output("p-explanation", "children")],
     [Input("basin-dropdown", "value"),
      Input("global-start-year-dropdown", "value"),
      Input("global-end-year-dropdown", "value")],
@@ -1269,7 +1353,7 @@ def update_p_outputs(basin, start_year, end_year):
     return _hydro_figs(basin, start_year, end_year, "P")
 
 @app.callback(
-    [Output("et-map-graph", "figure"), Output("et-bar-graph", "figure")],
+    [Output("et-map-graph", "figure"), Output("et-bar-graph", "figure"), Output("et-explanation", "children")],
     [Input("basin-dropdown", "value"),
      Input("global-start-year-dropdown", "value"),
      Input("global-end-year-dropdown", "value")],
@@ -1359,16 +1443,16 @@ def update_lu_map(basin):
     return fig_map
 
 @app.callback(
-    [Output("p-et-map-graph", "figure"), Output("p-et-bar-graph", "figure")],
+    [Output("p-et-map-graph", "figure"), Output("p-et-bar-graph", "figure"), Output("p-et-explanation", "children")],
     [Input("basin-dropdown", "value"),
      Input("global-start-year-dropdown", "value"),
      Input("global-end-year-dropdown", "value")],
 )
 def update_p_et_outputs(basin, start_year, end_year):
     if basin == "all" or not basin:
-        return _empty_fig("Select a specific basin to view data."), _empty_fig("Select a specific basin to view data.")
+        return _empty_fig("Select a specific basin to view data."), _empty_fig("Select a specific basin to view data."), ""
     if start_year is None or end_year is None:
-        return _empty_fig("Select year range."), _empty_fig("Select year range.")
+        return _empty_fig("Select year range."), _empty_fig("Select year range."), ""
 
     ys, ye = int(start_year), int(end_year)
     if ys > ye:
@@ -1377,11 +1461,11 @@ def update_p_et_outputs(basin, start_year, end_year):
     da_p_ts, _, _ = load_and_process_data(basin, "P",  year_start=ys, year_end=ye, aggregate_time=False)
     da_et_ts, _, _ = load_and_process_data(basin, "ET", year_start=ys, year_end=ye, aggregate_time=False)
     if da_p_ts is None or da_et_ts is None:
-        return _empty_fig("P or ET data missing."), _empty_fig()
+        return _empty_fig("P or ET data missing."), _empty_fig(), "Data missing."
 
     da_p_aligned, da_et_aligned = xr.align(da_p_ts, da_et_ts, join="inner")
     if da_p_aligned.sizes.get("time", 0) == 0:
-        return _empty_fig("No overlapping time steps for P and ET."), _empty_fig()
+        return _empty_fig("No overlapping time steps for P and ET."), _empty_fig(), "No data overlap."
 
     da_p_et_ts = da_p_aligned - da_et_aligned
 
@@ -1398,6 +1482,8 @@ def update_p_et_outputs(basin, start_year, end_year):
 
     spatial_dims = [d for d in ["latitude", "longitude"] if d in da_p_et_ts.dims]
     spatial_mean = da_p_et_ts.mean(dim=spatial_dims, skipna=True)
+    explanation = ""
+
     try:
         monthly = spatial_mean.groupby("time.month").mean(skipna=True).rename({"month": "Month"})
         months = [pd.to_datetime(m, format="%m").strftime("%b") for m in monthly["Month"].values]
@@ -1412,12 +1498,15 @@ def update_p_et_outputs(basin, start_year, end_year):
                 paper_bgcolor='rgba(0,0,0,0)',
                 font=dict(color="#1e293b")
             )
+            explanation = _generate_explanation("P-ET", basin, ys, ye, y_vals, months)
         else:
             fig_bar = _empty_fig(f"No valid monthly data for P-ET in {ys}–{ye}.")
+            explanation = "No valid data to generate explanation."
     except Exception:
         fig_bar = _empty_fig("No monthly grouping available for P-ET.")
+        explanation = "Error generating explanation."
 
-    return fig_map, fig_bar
+    return fig_map, fig_bar, dcc.Markdown(explanation)
 
 
 # =====
