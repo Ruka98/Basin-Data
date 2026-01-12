@@ -555,7 +555,7 @@ def make_basin_selector_map(selected_basin=None) -> go.Figure:
 
     ch = go.Choroplethmapbox(
         geojson=gj, locations=locations, featureidkey="properties.basin", z=z_vals,
-        colorscale=[[0, "rgba(0, 150, 57, 0.4)"], [1, "rgba(0, 150, 57, 0.4)"]], # IWMI Greenish tint
+        colorscale=[[0, "rgba(0, 78, 162, 0.4)"], [1, "rgba(0, 78, 162, 0.4)"]], # IWMI Blueish tint
         marker=dict(line=dict(width=3 if selected_basin and selected_basin != "all" else 1.8, color="rgb(0, 78, 162)")), # IWMI Blue border
         hovertemplate="%{location}<extra></extra>", showscale=False,
     )
@@ -580,7 +580,7 @@ def make_basin_selector_map(selected_basin=None) -> go.Figure:
 
     fig.update_layout(
         mapbox=dict(style="carto-positron", center=dict(lon=center_lon, lat=center_lat), zoom=zoom),
-        margin=dict(l=0, r=0, t=0, b=0), uirevision="keep", clickmode="event+select", height=400,
+        margin=dict(l=0, r=0, t=0, b=0), uirevision=selected_basin if selected_basin else "all", clickmode="event+select", height=400,
     )
     return fig
 
@@ -693,7 +693,7 @@ MODERN_STYLES = {
     },
     "header_bar": {
         "backgroundColor": "white",
-        "borderBottom": "4px solid #009639", # IWMI Green
+        "borderBottom": "4px solid #004ea2", # IWMI Blue
         "padding": "20px 40px",
         "display": "flex",
         "justifyContent": "space-between",
@@ -703,14 +703,15 @@ MODERN_STYLES = {
         "color": "#004ea2", # IWMI Blue
         "fontSize": "2.2rem",
         "fontWeight": "bold",
-        "margin": "0"
+        "margin": "0",
+        "textAlign": "center"
     },
     "section_container": {
         "padding": "40px 40px",
         "backgroundColor": "white"
     },
     "section_title": {
-        "color": "#009639", # IWMI Green
+        "color": "#004ea2", # IWMI Blue
         "fontSize": "1.8rem",
         "fontWeight": "600",
         "marginBottom": "20px",
@@ -748,12 +749,14 @@ app.layout = html.Div(
             style=MODERN_STYLES["header_bar"],
             children=[
                 html.Div([
-                    html.Img(src=app.get_asset_url('iwmi.png'), style={"height": "60px", "marginRight": "20px"}),
-                    html.Img(src=app.get_asset_url('cgiar.png'), style={"height": "60px"})
-                ]),
+                    html.Img(src=app.get_asset_url('iwmi.png'), style={"height": "60px"})
+                ], style={"flex": "0 0 auto"}),
                 html.Div([
                     html.H1("Rapid Water Accounting Dashboard - Jordan", style=MODERN_STYLES["header_title"]),
-                ])
+                ], style={"flex": "1 1 auto", "textAlign": "center"}),
+                html.Div([
+                    html.Img(src=app.get_asset_url('cgiar.png'), style={"height": "60px"})
+                ], style={"flex": "0 0 auto"})
             ]
         ),
 
@@ -845,10 +848,12 @@ def get_overview_layout():
     return html.Div([
         html.H3("Basin Overview", style={"color": "#004ea2"}),
         html.Div(id="basin-overview-content")
-    ])
+    ], style={"marginBottom": "40px"})
 
 def get_spatial_layout():
     return html.Div([
+        html.H3("Spatial Analysis", style={"color": "#004ea2", "borderBottom": "2px solid #eee", "paddingBottom": "10px"}),
+
         html.H4("Land Use & Land Cover", style={"color": "#004ea2", "marginTop": "20px"}),
         html.Div([
             html.Div(dcc.Loading(dcc.Graph(id="lu-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block"}),
@@ -865,11 +870,13 @@ def get_spatial_layout():
 
         html.H4("Land Use - Water Coupling", style={"color": "#004ea2", "marginTop": "30px"}),
         dcc.Loading(dcc.Graph(id="lu-et-p-bar"), type="circle")
-    ])
+    ], style={"marginBottom": "40px"})
 
 def get_wa_layout():
     return html.Div([
-        html.H4("Water Accounting Plus (WA+) - Resource Base", style={"color": "#004ea2"}),
+        html.H3("Water Accounting (WA+)", style={"color": "#004ea2", "borderBottom": "2px solid #eee", "paddingBottom": "10px"}),
+
+        html.H4("Resource Base", style={"color": "#004ea2"}),
         dcc.Loading(dcc.Graph(id="wa-resource-base-sankey"), type="circle"),
 
         html.H4("Sectoral Consumption", style={"color": "#004ea2", "marginTop": "30px"}),
@@ -877,10 +884,12 @@ def get_wa_layout():
 
         html.H4("Key Indicators", style={"color": "#004ea2", "marginTop": "30px"}),
         html.Div(id="wa-indicators-container")
-    ])
+    ], style={"marginBottom": "40px"})
 
 def get_climate_layout():
     return html.Div([
+        html.H3("Climate & Validation", style={"color": "#004ea2", "borderBottom": "2px solid #eee", "paddingBottom": "10px"}),
+
         html.H4("Precipitation Analysis", style={"color": "#004ea2"}),
         html.Div([
             html.Div(dcc.Loading(dcc.Graph(id="p-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block"}),
@@ -900,17 +909,20 @@ def get_climate_layout():
              html.Div(dcc.Graph(id="val-p-scatter"), style={"width": "49%", "display": "inline-block"}),
              html.Div(dcc.Graph(id="val-et-scatter"), style={"width": "49%", "display": "inline-block", "float": "right"})
         ])
-    ])
+    ], style={"marginBottom": "40px"})
 
 def get_reports_layout():
     return html.Div([
-        html.H4("Additional Documentation", style={"color": "#004ea2"}),
-        dcc.Tabs(id="inner-report-tabs", value="assumptions", vertical=True, children=[
-            dcc.Tab(label="Assumptions", value="assumptions"),
-            dcc.Tab(label="Limitations", value="limitations"),
-        ], style={"height": "300px", "width": "20%", "display": "inline-block", "verticalAlign": "top"}),
-        html.Div(id="report-content", style={"width": "75%", "display": "inline-block", "marginLeft": "2%", "padding": "20px", "backgroundColor": "white", "border": "1px solid #ddd"})
-    ])
+        html.H3("Documentation", style={"color": "#004ea2", "borderBottom": "2px solid #eee", "paddingBottom": "10px"}),
+
+        html.Div([
+            html.H4("Assumptions", style={"color": "#004ea2"}),
+            html.Div(id="report-assumptions-content", style={"padding": "10px", "backgroundColor": "#f9f9f9", "marginBottom": "20px"}),
+
+            html.H4("Limitations", style={"color": "#004ea2"}),
+            html.Div(id="report-limitations-content", style={"padding": "10px", "backgroundColor": "#f9f9f9"})
+        ])
+    ], style={"marginBottom": "40px"})
 
 @app.callback(
     Output("dynamic-content", "children"),
@@ -927,6 +939,11 @@ def render_basin_content(basin):
     intro_text = read_text_section(basin, "introduction")
     objectives_text = read_text_section(basin, "objectives")
     methodology_text = read_text_section(basin, "methodology")
+
+    # Read documentation text for later callbacks or embedding directly
+    # Ideally, we pass this to the layout generators, but for simplicity of callbacks structure:
+    # We will trigger the content update via callbacks or simple IDs.
+    # Since we are moving to single page, we can generate the layout once here.
 
     # Get years
     opts, start, end = get_year_options(basin)
@@ -953,7 +970,7 @@ def render_basin_content(basin):
         dcc.Markdown(methodology_text, style=MODERN_STYLES["text_content"])
     ]))
 
-    # 4. Results
+    # 4. Results (Report Style)
     content.append(html.Div(style={**MODERN_STYLES["section_container"], "backgroundColor": "#f8f9fa"}, children=[
         html.H2("4. Results", style=MODERN_STYLES["section_title"]),
 
@@ -971,51 +988,28 @@ def render_basin_content(basin):
             ])
         ]),
 
-        dcc.Tabs(id="results-tabs", value="overview", children=[
-            dcc.Tab(label="Overview", value="overview",
-                    selected_style={"borderTop": "3px solid #009639", "color": "#009639", "fontWeight": "bold"}),
-            dcc.Tab(label="Spatial Analysis", value="spatial",
-                    selected_style={"borderTop": "3px solid #009639", "color": "#009639", "fontWeight": "bold"}),
-            dcc.Tab(label="Water Accounting (WA+)", value="wa",
-                    selected_style={"borderTop": "3px solid #009639", "color": "#009639", "fontWeight": "bold"}),
-            dcc.Tab(label="Climate & Validation", value="climate",
-                    selected_style={"borderTop": "3px solid #009639", "color": "#009639", "fontWeight": "bold"}),
-            dcc.Tab(label="Documentation", value="reports",
-                    selected_style={"borderTop": "3px solid #009639", "color": "#009639", "fontWeight": "bold"})
-        ], style={"marginTop": "20px"}),
-
-        html.Div(id="tab-content", style={"backgroundColor": "white", "padding": "20px", "border": "1px solid #d6d6d6", "borderTop": "none"})
+        # Stacked Layouts
+        html.Div(style={"backgroundColor": "white", "padding": "30px", "border": "1px solid #d6d6d6"}, children=[
+             get_overview_layout(),
+             get_spatial_layout(),
+             get_wa_layout(),
+             get_climate_layout(),
+             get_reports_layout()
+        ])
     ]))
 
     return content
 
 @app.callback(
-    Output("tab-content", "children"),
-    [Input("results-tabs", "value"),
-     Input("basin-dropdown", "value")]
+    [Output("report-assumptions-content", "children"), Output("report-limitations-content", "children")],
+    [Input("basin-dropdown", "value")]
 )
-def render_tab_content(tab, basin):
-    if not basin or basin == "none": return html.Div()
+def update_report_docs(basin):
+    if not basin or basin == "none": return "", ""
+    assumptions = read_text_section(basin, "assumptions")
+    limitations = read_text_section(basin, "limitations")
+    return dcc.Markdown(assumptions), dcc.Markdown(limitations)
 
-    if tab == "overview":
-        return get_overview_layout()
-    elif tab == "spatial":
-        return get_spatial_layout()
-    elif tab == "wa":
-        return get_wa_layout()
-    elif tab == "climate":
-        return get_climate_layout()
-    elif tab == "reports":
-        return get_reports_layout()
-    return get_overview_layout()
-
-@app.callback(
-    Output("report-content", "children"),
-    [Input("inner-report-tabs", "value"), Input("basin-dropdown", "value")]
-)
-def update_inner_report(tab, basin):
-    if not basin or basin == "none": return ""
-    return dcc.Markdown(read_text_section(basin, tab))
 
 # --- DATA PROCESSING LOGIC & WRAPPERS ---
 
@@ -1031,8 +1025,6 @@ def update_basin_overview(basin, start_year, end_year):
         if not metrics:
             return html.Div(f"No overview data available for {basin} in {start_year}-{end_year}.")
         
-        intro_text = read_basin_intro(basin)
-        
         total_inflows = f"{metrics.get('total_inflows', 0):.0f}"
         precip_pct = f"{metrics.get('precipitation_percentage', 0):.0f}"
         imports = f"{metrics.get('surface_water_imports', 0):.0f}"
@@ -1041,8 +1033,6 @@ def update_basin_overview(basin, start_year, end_year):
         treated_wastewater = f"{metrics.get('treated_wastewater', 0):.0f}"
         non_irrigated = f"{metrics.get('non_irrigated_consumption', 0):.0f}"
         recharge = f"{metrics.get('recharge', 0):.0f}"
-        
-        year_range_str = f"{start_year}" if start_year == end_year else f"{start_year}–{end_year}"
         
         summary_items = [
             f"Total water inflows: {total_inflows} Mm3/year.",
