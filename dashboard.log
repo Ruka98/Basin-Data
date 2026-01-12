@@ -1,0 +1,43 @@
+Dash is running on http://0.0.0.0:7860/
+
+ * Serving Flask app 'dashboard'
+ * Debug mode: off
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:7860
+ * Running on http://192.168.0.2:7860
+[33mPress CTRL+C to quit[0m
+127.0.0.1 - - [12/Jan/2026 09:42:54] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:54] "GET /_dash-component-suites/dash/deps/polyfill@7.v3_3_0m1768210590.12.1.min.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:54] "GET /_dash-component-suites/dash/dash-renderer/build/dash_renderer.v3_3_0m1768210590.min.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:54] "GET /_dash-component-suites/dash/dcc/dash_core_components.v3_3_0m1768210590.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:54] "GET /_dash-component-suites/dash/deps/react-dom@18.v3_3_0m1768210590.3.1.min.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:54] "GET /_dash-component-suites/dash/deps/react@18.v3_3_0m1768210590.3.1.min.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:54] "GET /_dash-component-suites/dash/deps/prop-types@15.v3_3_0m1768210590.8.1.min.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:54] "GET /_dash-component-suites/dash/dcc/dash_core_components-shared.v3_3_0m1768210590.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:54] "GET /_dash-component-suites/dash/html/dash_html_components.v3_0_5m1768210590.min.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:54] "GET /_dash-component-suites/dash/dash_table/bundle.v6_0_5m1768210590.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:54] "GET /_dash-layout HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:54] "GET /_dash-dependencies HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:55] "GET /_dash-component-suites/dash/dcc/async-dropdown.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:55] "GET /_dash-component-suites/dash/dcc/async-graph.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:55] "[33mGET /assets/cgiar.png HTTP/1.1[0m" 404 -
+127.0.0.1 - - [12/Jan/2026 09:42:55] "[33mGET /assets/iwmi.png HTTP/1.1[0m" 404 -
+127.0.0.1 - - [12/Jan/2026 09:42:55] "GET /_dash-component-suites/plotly/package_data/plotly.min.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:55] "POST /_dash-update-component HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:55] "POST /_dash-update-component HTTP/1.1" 200 -
+/app/dashboard.py:556: DeprecationWarning:
+
+*choroplethmapbox* is deprecated! Use *choroplethmap* instead. Learn more at: https://plotly.com/python/mapbox-to-maplibre/
+
+127.0.0.1 - - [12/Jan/2026 09:42:55] "POST /_dash-update-component HTTP/1.1" 200 -
+/app/dashboard.py:556: DeprecationWarning:
+
+*choroplethmapbox* is deprecated! Use *choroplethmap* instead. Learn more at: https://plotly.com/python/mapbox-to-maplibre/
+
+127.0.0.1 - - [12/Jan/2026 09:42:57] "POST /_dash-update-component HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:57] "POST /_dash-update-component HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:57] "GET /_dash-component-suites/dash/dcc/async-markdown.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:57] "POST /_dash-update-component HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:57] "GET /_dash-component-suites/dash/dcc/async-highlight.js HTTP/1.1" 200 -
+127.0.0.1 - - [12/Jan/2026 09:42:57] "POST /_dash-update-component HTTP/1.1" 200 -
