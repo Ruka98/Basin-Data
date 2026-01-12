@@ -1,0 +1,3 @@
+The Amman-Zarqa Basin is the most important basin in Jordan. It hosts the majority of the country's population and industrial activities.
+The basin faces significant water challenges including groundwater depletion and pollution.
+This dashboard provides a comprehensive overview of the water resources in the basin using the WA+ framework.

@@ -109,6 +109,23 @@ def read_basin_intro(basin_name: str) -> str:
             print(f"Error reading intro file: {e}")
     return ""
 
+def read_text_section(basin_name: str, section: str) -> str:
+    """Read specific text section (introduction, methodology, assumptions, limitations)."""
+    text_path = os.path.join(BASIN_DIR, basin_name, "text", f"{section}.txt")
+    if os.path.exists(text_path):
+        try:
+            with open(text_path, 'r') as f:
+                return f.read()
+        except Exception as e:
+            print(f"Error reading {section} file: {e}")
+            # Fallback to intro.txt if introduction is requested but missing in text/
+            if section == "introduction":
+                return read_basin_intro(basin_name)
+    elif section == "introduction":
+         return read_basin_intro(basin_name)
+
+    return f"No {section} text available."
+
 def find_yearly_csv(basin_name: str, year: int):
     """Find yearly CSV file for a basin and year."""
     results_dir = os.path.join(BASIN_DIR, basin_name, "Results", "yearly")
@@ -123,106 +140,233 @@ def find_yearly_csv(basin_name: str, year: int):
     
     return _first_existing(patterns)
 
-def parse_basin_overview(csv_file: str):
-    """Parse CSV file and extract key basin overview metrics."""
+def parse_wa_sheet(csv_file: str):
+    """Robust parsing of sheet1 CSV for WA+."""
     try:
         df = pd.read_csv(csv_file, sep=';')
+        # Ensure value is numeric and convert units if needed (assuming km3 to Mm3)
+        # Check if conversion is needed. Logic from previous parser was *1000.
+        # I'll stick to that convention.
         
-        # Initialize metrics dictionary
-        metrics = {}
-        
-        # Extract key metrics based on the CSV structure
+        cleaned_rows = []
         for _, row in df.iterrows():
-            class_val = row.get('CLASS', '')
-            subclass = row.get('SUBCLASS', '')
-            variable = row.get('VARIABLE', '')
-            value = row.get('VALUE', 0)
-            
-            # Skip empty values
-            if pd.isna(value) or value == '':
-                continue
-                
             try:
-                # Multiply by 1000 to convert to Mm³/year
-                value = float(value) * 1000
+                val = float(row.get('VALUE', 0)) * 1000
             except (ValueError, TypeError):
-                continue
+                val = 0
             
-            # Total inflows (sum of all INFLOW)
-            if class_val == 'INFLOW':
-                metrics['total_inflows'] = metrics.get('total_inflows', 0) + value
-            
-            # Precipitation components
-            if class_val == 'INFLOW' and subclass == 'PRECIPITATION':
-                if variable == 'Rainfall':
-                    metrics['precipitation_rainfall'] = value
-                elif variable == 'Snowfall':
-                    metrics['precipitation_snowfall'] = value
-                metrics['total_precipitation'] = metrics.get('total_precipitation', 0) + value
-            
-            # Surface water imports
-            if (class_val == 'INFLOW' and subclass == 'SURFACE WATER' and 
-                variable in ['Main riverstem', 'Tributaries']):
-                metrics['surface_water_imports'] = metrics.get('surface_water_imports', 0) + value
-            
-            # Total landscape water consumption (sum of all ET)
-            if class_val == 'OUTFLOW' and 'ET' in subclass:
-                # Exclude Manmade and Consumed Water to avoid double counting or mismatch with user expectations
-                if variable not in ['Manmade', 'Consumed Water']:
-                    metrics['total_water_consumption'] = metrics.get('total_water_consumption', 0) + value
-            
-            # Manmade water consumption
-            if (class_val == 'OUTFLOW' and subclass == 'ET INCREMENTAL' and 
-                variable == 'Manmade'):
-                metrics['manmade_consumption'] = value
-            
-            # Treated wastewater
-            if (class_val == 'OUTFLOW' and subclass == 'OTHER' and 
-                variable == 'Treated Waste Water'):
-                metrics['treated_wastewater'] = value
-            
-            # Non-irrigated water consumption
-            if (class_val == 'OUTFLOW' and subclass == 'ET INCREMENTAL' and 
-                variable == 'Consumed Water'):
-                metrics['non_irrigated_consumption'] = value
-            
-            # Recharge
-            if (class_val == 'STORAGE' and subclass == 'CHANGE' and 
-                'Surface storage' in variable):
-                metrics['recharge'] = abs(value) if value < 0 else value
+            cleaned_rows.append({
+                'CLASS': row.get('CLASS', '').strip(),
+                'SUBCLASS': row.get('SUBCLASS', '').strip(),
+                'VARIABLE': row.get('VARIABLE', '').strip(),
+                'VALUE': val
+            })
         
-        # Calculate percentages
-        if metrics.get('total_inflows', 0) > 0:
-            metrics['precipitation_percentage'] = (metrics.get('total_precipitation', 0) / 
-                                                 metrics['total_inflows'] * 100)
-        
-        return metrics
-        
+        return pd.DataFrame(cleaned_rows)
     except Exception as e:
-        print(f"Error parsing CSV: {e}")
-        return {}
+        print(f"Error parsing WA sheet: {e}")
+        return pd.DataFrame()
 
-def get_basin_overview_metrics_for_range(basin_name: str, start_year: int, end_year: int):
-    """Get comprehensive basin overview metrics averaged over a year range."""
-    all_metrics = []
-    
+def get_wa_data(basin_name: str, start_year: int, end_year: int):
+    """Aggregates WA+ data for a range of years."""
+    all_data = []
+
     for year in range(start_year, end_year + 1):
         csv_file = find_yearly_csv(basin_name, year)
         if csv_file:
-            metrics = parse_basin_overview(csv_file)
-            if metrics:
-                all_metrics.append(metrics)
-    
-    if not all_metrics:
+            df = parse_wa_sheet(csv_file)
+            if not df.empty:
+                df['Year'] = year
+                all_data.append(df)
+
+    if not all_data:
+        return pd.DataFrame()
+
+    combined_df = pd.concat(all_data, ignore_index=True)
+
+    # Group by CLASS, SUBCLASS, VARIABLE and mean the VALUE
+    agg_df = combined_df.groupby(['CLASS', 'SUBCLASS', 'VARIABLE'])['VALUE'].mean().reset_index()
+    return agg_df
+
+def parse_basin_overview(csv_file: str):
+    """Parse CSV file and extract key basin overview metrics (Legacy Wrapper)."""
+    df = parse_wa_sheet(csv_file)
+    if df.empty:
+        return {}
+
+    metrics = {}
+
+    # Calculate metrics from the clean dataframe
+    # Total inflows
+    metrics['total_inflows'] = df[df['CLASS'] == 'INFLOW']['VALUE'].sum()
+
+    # Precipitation
+    metrics['total_precipitation'] = df[
+        (df['CLASS'] == 'INFLOW') & (df['SUBCLASS'] == 'PRECIPITATION')
+    ]['VALUE'].sum()
+
+    p_rainfall = df[
+        (df['CLASS'] == 'INFLOW') & (df['SUBCLASS'] == 'PRECIPITATION') & (df['VARIABLE'] == 'Rainfall')
+    ]['VALUE'].sum()
+    metrics['precipitation_rainfall'] = p_rainfall
+
+    # Surface water imports
+    imports = df[
+        (df['CLASS'] == 'INFLOW') & (df['SUBCLASS'] == 'SURFACE WATER') &
+        (df['VARIABLE'].isin(['Main riverstem', 'Tributaries']))
+    ]['VALUE'].sum()
+    metrics['surface_water_imports'] = imports
+
+    # Consumption
+    # Exclude Manmade and Consumed Water from total sum to match legacy logic
+    et_rows = df[(df['CLASS'] == 'OUTFLOW') & (df['SUBCLASS'].str.contains('ET'))]
+    metrics['total_water_consumption'] = et_rows[~et_rows['VARIABLE'].isin(['Manmade', 'Consumed Water'])]['VALUE'].sum()
+
+    metrics['manmade_consumption'] = df[
+        (df['CLASS'] == 'OUTFLOW') & (df['SUBCLASS'] == 'ET INCREMENTAL') & (df['VARIABLE'] == 'Manmade')
+    ]['VALUE'].sum()
+
+    metrics['non_irrigated_consumption'] = df[
+        (df['CLASS'] == 'OUTFLOW') & (df['SUBCLASS'] == 'ET INCREMENTAL') & (df['VARIABLE'] == 'Consumed Water')
+    ]['VALUE'].sum()
+
+    metrics['treated_wastewater'] = df[
+         (df['CLASS'] == 'OUTFLOW') & (df['SUBCLASS'] == 'OTHER') & (df['VARIABLE'] == 'Treated Waste Water')
+    ]['VALUE'].sum()
+
+    # Recharge
+    recharge_val = df[
+        (df['CLASS'] == 'STORAGE') & (df['SUBCLASS'] == 'CHANGE') & (df['VARIABLE'].str.contains('Surface storage'))
+    ]['VALUE'].sum()
+    metrics['recharge'] = abs(recharge_val) if recharge_val < 0 else recharge_val
+
+    if metrics['total_inflows'] > 0:
+        metrics['precipitation_percentage'] = (metrics['total_precipitation'] / metrics['total_inflows'] * 100)
+
+    return metrics
+
+def get_basin_overview_metrics_for_range(basin_name: str, start_year: int, end_year: int):
+    """Get comprehensive basin overview metrics averaged over a year range."""
+    # Use get_wa_data to get averaged raw data first
+    agg_df = get_wa_data(basin_name, start_year, end_year)
+    if agg_df.empty:
         return None
+
+    # Now compute metrics on the averaged dataframe
+    # This is statistically equivalent to averaging the metrics if they are linear combinations
+
+    metrics = {}
+    metrics['total_inflows'] = agg_df[agg_df['CLASS'] == 'INFLOW']['VALUE'].sum()
+
+    metrics['total_precipitation'] = agg_df[
+        (agg_df['CLASS'] == 'INFLOW') & (agg_df['SUBCLASS'] == 'PRECIPITATION')
+    ]['VALUE'].sum()
+
+    metrics['precipitation_rainfall'] = agg_df[
+        (agg_df['CLASS'] == 'INFLOW') & (agg_df['SUBCLASS'] == 'PRECIPITATION') & (agg_df['VARIABLE'] == 'Rainfall')
+    ]['VALUE'].sum()
+
+    metrics['surface_water_imports'] = agg_df[
+        (agg_df['CLASS'] == 'INFLOW') & (agg_df['SUBCLASS'] == 'SURFACE WATER') &
+        (agg_df['VARIABLE'].isin(['Main riverstem', 'Tributaries']))
+    ]['VALUE'].sum()
+
+    et_rows = agg_df[(agg_df['CLASS'] == 'OUTFLOW') & (agg_df['SUBCLASS'].str.contains('ET'))]
+    metrics['total_water_consumption'] = et_rows[~et_rows['VARIABLE'].isin(['Manmade', 'Consumed Water'])]['VALUE'].sum()
+
+    metrics['manmade_consumption'] = agg_df[
+        (agg_df['CLASS'] == 'OUTFLOW') & (agg_df['SUBCLASS'] == 'ET INCREMENTAL') & (agg_df['VARIABLE'] == 'Manmade')
+    ]['VALUE'].sum()
+
+    metrics['non_irrigated_consumption'] = agg_df[
+        (agg_df['CLASS'] == 'OUTFLOW') & (agg_df['SUBCLASS'] == 'ET INCREMENTAL') & (agg_df['VARIABLE'] == 'Consumed Water')
+    ]['VALUE'].sum()
+
+    metrics['treated_wastewater'] = agg_df[
+         (agg_df['CLASS'] == 'OUTFLOW') & (agg_df['SUBCLASS'] == 'OTHER') & (agg_df['VARIABLE'] == 'Treated Waste Water')
+    ]['VALUE'].sum()
+
+    recharge_val = agg_df[
+        (agg_df['CLASS'] == 'STORAGE') & (agg_df['SUBCLASS'] == 'CHANGE') & (agg_df['VARIABLE'].str.contains('Surface storage'))
+    ]['VALUE'].sum()
+    metrics['recharge'] = abs(recharge_val) if recharge_val < 0 else recharge_val
+
+    if metrics['total_inflows'] > 0:
+        metrics['precipitation_percentage'] = (metrics['total_precipitation'] / metrics['total_inflows'] * 100)
     
-    # Calculate average metrics across all years
-    avg_metrics = {}
-    for key in all_metrics[0].keys():
-        values = [m.get(key, 0) for m in all_metrics]
-        avg_metrics[key] = np.mean(values)
+    return metrics
+
+
+# ======================
+# INDICATOR UTILITIES
+# ======================
+
+def parse_indicators(csv_file: str):
+    """Parse indicators CSV."""
+    try:
+        df = pd.read_csv(csv_file, sep=';')
+        return df
+    except Exception as e:
+        print(f"Error parsing indicators: {e}")
+        return pd.DataFrame()
+
+def get_indicators(basin_name: str, start_year: int, end_year: int):
+    """Aggregates indicators for a range of years."""
+    all_data = []
+
+    # We need to find indicator files
+    results_dir = os.path.join(BASIN_DIR, basin_name, "Results", "indicators")
+    if not os.path.isdir(results_dir):
+        return pd.DataFrame()
+
+    for year in range(start_year, end_year + 1):
+        pat = os.path.join(results_dir, f"indicators_{year}.csv")
+        csv_file = _first_existing([pat])
+        if csv_file:
+            df = parse_indicators(csv_file)
+            if not df.empty:
+                df['Year'] = year
+                all_data.append(df)
     
-    return avg_metrics
+    if not all_data:
+        return pd.DataFrame()
+
+    combined_df = pd.concat(all_data, ignore_index=True)
+
+    # For indicators, we take the mean of numerical values.
+    # Categorical fields (Definition, TrafficLight) need to be handled.
+    # We take the mode or just the first one for static definitions.
+    
+    # Group by INDICATOR
+    numeric_cols = ['VALUE']
+    meta_cols = ['UNIT', 'DEFINITION', 'TRAFFIC_LIGHT']
+    
+    agg_df = combined_df.groupby('INDICATOR')[numeric_cols].mean().reset_index()
+
+    # Merge back meta info (take first)
+    meta_df = combined_df[['INDICATOR'] + meta_cols].drop_duplicates('INDICATOR')
+    agg_df = pd.merge(agg_df, meta_df, on='INDICATOR', how='left')
+
+    return agg_df
+
+# ======================
+# VALIDATION UTILITIES
+# ======================
+
+def get_validation_data(basin_name: str, var_type: str):
+    """Get validation data for rainfall or ET."""
+    filename = "rainfall_validation.csv" if var_type == "P" else "et_validation.csv"
+    filepath = os.path.join(BASIN_DIR, basin_name, "Results", "validation", filename)
+
+    if not os.path.exists(filepath):
+        return pd.DataFrame()
+
+    try:
+        df = pd.read_csv(filepath, sep=';')
+        return df
+    except Exception as e:
+        print(f"Error reading validation data: {e}")
+        return pd.DataFrame()
 
 
 # ===================
@@ -832,108 +976,194 @@ app.layout = html.Div(
             ]
         ),
 
-        # Basin Overview Section
-        html.Div(
-            style=MODERN_STYLES["card"],
-            children=[
-                html.H3("📊 Basin Overview", style=MODERN_STYLES["section_title"]),
-                html.Div(id="basin-overview-content", children=[
-                    html.Div("Select a specific basin and year range to view overview metrics.", 
-                            style={"textAlign": "center", "color": "#64748b", "padding": "40px"})
-                ])
-            ]
-        ),
+        # TABS SECTION
+        dcc.Tabs(id="dashboard-tabs", value="overview", children=[
+            dcc.Tab(label="Overview", value="overview", style={"padding": "10px", "fontWeight": "600"}),
+            dcc.Tab(label="Spatial Analysis", value="spatial", style={"padding": "10px", "fontWeight": "600"}),
+            dcc.Tab(label="Water Accounting", value="wa", style={"padding": "10px", "fontWeight": "600"}),
+            dcc.Tab(label="Climate & Validation", value="climate", style={"padding": "10px", "fontWeight": "600"}),
+            dcc.Tab(label="Analysis Reports", value="reports", style={"padding": "10px", "fontWeight": "600"})
+        ], style={"marginBottom": "20px"}),
 
-        # Data Visualization Sections
-        html.Div([
-            # Land Use Section
-            html.Div(
-                style=MODERN_STYLES["card"],
-                children=[
-                    html.H3("🗺️ Land Use / Land Cover", style=MODERN_STYLES["section_title"]),
-                    html.Div([
-                        html.Div(
-                            dcc.Loading(dcc.Graph(id="lu-map-graph"), type="circle"),
-                            style={"width": "48%", "display": "inline-block", "padding": "10px"}
-                        ),
-                        html.Div(
-                            dcc.Loading(dcc.Graph(id="lu-bar-graph"), type="circle"),
-                            style={"width": "48%", "display": "inline-block", "padding": "10px", "float": "right"}
-                        ),
-                    ]),
-                    html.Div(id="lu-explanation", style={"marginTop": "15px", "padding": "15px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "color": "#475569", "fontSize": "14px", "lineHeight": "1.6"})
-                ]
-            ),
-
-            # Precipitation Section
-            html.Div(
-                style=MODERN_STYLES["card"],
-                children=[
-                    html.H3("🌧️ Precipitation (P)", style=MODERN_STYLES["section_title"]),
-                    html.Div([
-                        html.Div(
-                            dcc.Loading(dcc.Graph(id="p-map-graph"), type="circle"),
-                            style={"width": "48%", "display": "inline-block", "padding": "10px"}
-                        ),
-                        html.Div(
-                            dcc.Loading(dcc.Graph(id="p-bar-graph"), type="circle"),
-                            style={"width": "48%", "display": "inline-block", "padding": "10px", "float": "right"}
-                        ),
-                    ]),
-                    html.Div(id="p-explanation", style={"marginTop": "15px", "padding": "15px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "color": "#475569", "fontSize": "14px", "lineHeight": "1.6"})
-                ]
-            ),
-
-            # Evapotranspiration Section
-            html.Div(
-                style=MODERN_STYLES["card"],
-                children=[
-                    html.H3("💧 Evapotranspiration (ET)", style=MODERN_STYLES["section_title"]),
-                    html.Div([
-                        html.Div(
-                            dcc.Loading(dcc.Graph(id="et-map-graph"), type="circle"),
-                            style={"width": "48%", "display": "inline-block", "padding": "10px"}
-                        ),
-                        html.Div(
-                            dcc.Loading(dcc.Graph(id="et-bar-graph"), type="circle"),
-                            style={"width": "48%", "display": "inline-block", "padding": "10px", "float": "right"}
-                        ),
-                    ]),
-                    html.Div(id="et-explanation", style={"marginTop": "15px", "padding": "15px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "color": "#475569", "fontSize": "14px", "lineHeight": "1.6"})
-                ]
-            ),
-
-            # Water Balance Section
-            html.Div(
-                style=MODERN_STYLES["card"],
-                children=[
-                    html.H3("⚖️ Water Balance (P - ET)", style=MODERN_STYLES["section_title"]),
-                    html.Div([
-                        html.Div(
-                            dcc.Loading(dcc.Graph(id="p-et-map-graph"), type="circle"),
-                            style={"width": "48%", "display": "inline-block", "padding": "10px"}
-                        ),
-                        html.Div(
-                            dcc.Loading(dcc.Graph(id="p-et-bar-graph"), type="circle"),
-                            style={"width": "48%", "display": "inline-block", "padding": "10px", "float": "right"}
-                        ),
-                    ]),
-                    html.Div(id="p-et-explanation", style={"marginTop": "15px", "padding": "15px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "color": "#475569", "fontSize": "14px", "lineHeight": "1.6"})
-                ]
-            ),
-        ]),
-
-        # Footer
-        html.Div(
-            style={"textAlign": "center", "marginTop": "40px", "padding": "20px", "color": "#64748b", "borderTop": "1px solid #e2e8f0"},
-            children=[
-                html.P("Basin Data Dashboard • Interactive Hydrological Analysis"),
-                html.P("Built with Dash & Plotly", style={"fontSize": "12px", "marginTop": "5px"})
-            ]
-        )
+        # TAB CONTENT CONTAINERS
+        html.Div(id="tab-content")
     ]
 )
 
+# SEPARATE CONTENT GENERATORS FOR TABS
+
+def get_overview_layout():
+    return html.Div(
+        style=MODERN_STYLES["card"],
+        children=[
+            html.H3("📊 Basin Overview", style=MODERN_STYLES["section_title"]),
+            html.Div(id="basin-overview-content", children=[
+                html.Div("Select a specific basin and year range to view overview metrics.",
+                        style={"textAlign": "center", "color": "#64748b", "padding": "40px"})
+            ])
+        ]
+    )
+
+def get_spatial_layout():
+    return html.Div([
+        # Land Use Section
+        html.Div(
+            style=MODERN_STYLES["card"],
+            children=[
+                html.H3("🗺️ Land Use / Land Cover", style=MODERN_STYLES["section_title"]),
+                html.Div([
+                    html.Div(
+                        dcc.Loading(dcc.Graph(id="lu-map-graph"), type="circle"),
+                        style={"width": "48%", "display": "inline-block", "padding": "10px"}
+                    ),
+                    html.Div(
+                        dcc.Loading(dcc.Graph(id="lu-bar-graph"), type="circle"),
+                        style={"width": "48%", "display": "inline-block", "padding": "10px", "float": "right"}
+                    ),
+                ]),
+                html.Div(id="lu-explanation", style={"marginTop": "15px", "padding": "15px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "color": "#475569", "fontSize": "14px", "lineHeight": "1.6"})
+            ]
+        ),
+
+        # Land Use - Hydro Coupling
+        html.Div(
+            style=MODERN_STYLES["card"],
+            children=[
+                html.H3("🌱 Land Use - Water Coupling", style=MODERN_STYLES["section_title"]),
+                html.Div([
+                    html.Div(
+                        dcc.Loading(dcc.Graph(id="lu-et-p-bar"), type="circle"),
+                        style={"width": "100%", "padding": "10px"}
+                    ),
+                ]),
+                html.Div("Average Annual Precipitation (P) and Evapotranspiration (ET) for major land use classes.",
+                         style={"marginTop": "10px", "color": "#64748b", "fontSize": "14px"})
+            ]
+        ),
+
+        # Water Balance Section
+        html.Div(
+            style=MODERN_STYLES["card"],
+            children=[
+                html.H3("⚖️ Water Balance (P - ET)", style=MODERN_STYLES["section_title"]),
+                html.Div([
+                    html.Div(
+                        dcc.Loading(dcc.Graph(id="p-et-map-graph"), type="circle"),
+                        style={"width": "48%", "display": "inline-block", "padding": "10px"}
+                    ),
+                    html.Div(
+                        dcc.Loading(dcc.Graph(id="p-et-bar-graph"), type="circle"),
+                        style={"width": "48%", "display": "inline-block", "padding": "10px", "float": "right"}
+                    ),
+                ]),
+                html.Div(id="p-et-explanation", style={"marginTop": "15px", "padding": "15px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "color": "#475569", "fontSize": "14px", "lineHeight": "1.6"})
+            ]
+        )
+    ])
+
+def get_wa_layout():
+    return html.Div([
+        # Resource Base Section
+        html.Div(
+            style=MODERN_STYLES["card"],
+            children=[
+                html.H3("🔄 WA+ Resource Base", style=MODERN_STYLES["section_title"]),
+                dcc.Loading(dcc.Graph(id="wa-resource-base-sankey"), type="circle"),
+                html.Div("Shows inflows, outflows, and storage changes based on WA+ Sheet 1.",
+                        style={"marginTop": "10px", "color": "#64748b", "fontSize": "14px"})
+            ]
+        ),
+
+        # Sectoral Consumption
+        html.Div(
+            style=MODERN_STYLES["card"],
+            children=[
+                html.H3("🏙️ Sectoral Water Consumption", style=MODERN_STYLES["section_title"]),
+                dcc.Loading(dcc.Graph(id="wa-sectoral-bar"), type="circle")
+            ]
+        ),
+
+        # Indicators
+        html.Div(
+            style=MODERN_STYLES["card"],
+            children=[
+                html.H3("📉 Performance Indicators", style=MODERN_STYLES["section_title"]),
+                html.Div(id="wa-indicators-container")
+            ]
+        )
+    ])
+
+def get_climate_layout():
+    return html.Div([
+         # Precipitation Section
+        html.Div(
+            style=MODERN_STYLES["card"],
+            children=[
+                html.H3("🌧️ Precipitation (P)", style=MODERN_STYLES["section_title"]),
+                html.Div([
+                    html.Div(
+                        dcc.Loading(dcc.Graph(id="p-map-graph"), type="circle"),
+                        style={"width": "48%", "display": "inline-block", "padding": "10px"}
+                    ),
+                    html.Div(
+                        dcc.Loading(dcc.Graph(id="p-bar-graph"), type="circle"),
+                        style={"width": "48%", "display": "inline-block", "padding": "10px", "float": "right"}
+                    ),
+                ]),
+                html.Div(id="p-explanation", style={"marginTop": "15px", "padding": "15px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "color": "#475569", "fontSize": "14px", "lineHeight": "1.6"})
+            ]
+        ),
+
+        # Evapotranspiration Section
+        html.Div(
+            style=MODERN_STYLES["card"],
+            children=[
+                html.H3("💧 Evapotranspiration (ET)", style=MODERN_STYLES["section_title"]),
+                html.Div([
+                    html.Div(
+                        dcc.Loading(dcc.Graph(id="et-map-graph"), type="circle"),
+                        style={"width": "48%", "display": "inline-block", "padding": "10px"}
+                    ),
+                    html.Div(
+                        dcc.Loading(dcc.Graph(id="et-bar-graph"), type="circle"),
+                        style={"width": "48%", "display": "inline-block", "padding": "10px", "float": "right"}
+                    ),
+                ]),
+                html.Div(id="et-explanation", style={"marginTop": "15px", "padding": "15px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "color": "#475569", "fontSize": "14px", "lineHeight": "1.6"})
+            ]
+        ),
+
+        # Validation Section
+        html.Div(
+            style=MODERN_STYLES["card"],
+            children=[
+                html.H3("✅ Station vs Satellite Validation", style=MODERN_STYLES["section_title"]),
+                html.Div([
+                    html.Div(dcc.Graph(id="val-p-scatter"), style={"width": "48%", "display": "inline-block"}),
+                    html.Div(dcc.Graph(id="val-et-scatter"), style={"width": "48%", "display": "inline-block", "float": "right"})
+                ])
+            ]
+        )
+    ])
+
+def get_reports_layout():
+    return html.Div(
+        style=MODERN_STYLES["card"],
+        children=[
+            html.H3("📄 Basin Analysis Reports", style=MODERN_STYLES["section_title"]),
+            dcc.Tabs(id="report-tabs", value="introduction", vertical=True, children=[
+                dcc.Tab(label="Introduction", value="introduction", style={"padding": "10px"}),
+                dcc.Tab(label="Methodology", value="methodology", style={"padding": "10px"}),
+                dcc.Tab(label="Assumptions", value="assumptions", style={"padding": "10px"}),
+                dcc.Tab(label="Limitations", value="limitations", style={"padding": "10px"}),
+            ], style={"height": "400px", "width": "20%", "display": "inline-block", "verticalAlign": "top"}),
+            html.Div(id="report-content", style={
+                "display": "inline-block", "width": "75%", "marginLeft": "2%",
+                "padding": "20px", "backgroundColor": "#f8fafc", "borderRadius": "8px",
+                "verticalAlign": "top", "height": "400px", "overflowY": "auto"
+            })
+        ]
+    )
 
 # ===========
 # CALLBACKS
@@ -955,6 +1185,20 @@ def sync_dropdown_with_map(clickData, current_value):
         if basin:
             return basin
     return current_value
+
+@app.callback(Output("tab-content", "children"), [Input("dashboard-tabs", "value")])
+def render_tab_content(tab):
+    if tab == "overview":
+        return get_overview_layout()
+    elif tab == "spatial":
+        return get_spatial_layout()
+    elif tab == "wa":
+        return get_wa_layout()
+    elif tab == "climate":
+        return get_climate_layout()
+    elif tab == "reports":
+        return get_reports_layout()
+    return get_overview_layout()
 
 @app.callback(
     [
@@ -1256,6 +1500,167 @@ def update_basin_overview(basin, start_year, end_year):
             style={"textAlign": "center", "color": "#ef4444", "padding": "40px"}
         )
 
+# --- WA+ CALLBACKS ---
+
+@app.callback(
+    [Output("wa-resource-base-sankey", "figure"),
+     Output("wa-sectoral-bar", "figure"),
+     Output("wa-indicators-container", "children")],
+    [Input("basin-dropdown", "value"),
+     Input("global-start-year-dropdown", "value"),
+     Input("global-end-year-dropdown", "value")]
+)
+def update_wa_module(basin, start_year, end_year):
+    if not basin or basin == "all" or not start_year or not end_year:
+        return _empty_fig("Select Basin & Years"), _empty_fig(), html.Div("Select Basin & Years")
+
+    try:
+        start_year, end_year = int(start_year), int(end_year)
+    except:
+        return _empty_fig("Invalid Years"), _empty_fig(), html.Div("Invalid Years")
+
+    df = get_wa_data(basin, start_year, end_year)
+    if df.empty:
+        return _empty_fig(f"No WA+ data for {basin}"), _empty_fig(), html.Div(f"No data for {basin}")
+
+    # 1. Sankey Diagram
+    # We map CLASS to Nodes.
+    # Simplified flows: INFLOW -> BASIN -> OUTFLOW / STORAGE
+    # More detailed:
+    #   Sources: Precipitation, Surface Water, Groundwater, Desalinized
+    #   Intermediates: Landscape ET, Utilized Water
+    #   Sinks: ET (Atmosphere), Outflow (Surface/GW), Storage Change
+
+    # Let's build a simpler Sankey first: Source -> Consumption/Outflow
+
+    # Sources
+    precip = df[(df['CLASS'] == 'INFLOW') & (df['SUBCLASS'] == 'PRECIPITATION')]['VALUE'].sum()
+    sw_in = df[(df['CLASS'] == 'INFLOW') & (df['SUBCLASS'] == 'SURFACE WATER')]['VALUE'].sum()
+    gw_in = df[(df['CLASS'] == 'INFLOW') & (df['SUBCLASS'] == 'GROUNDWATER')]['VALUE'].sum()
+    other_in = df[(df['CLASS'] == 'INFLOW') & (df['SUBCLASS'] == 'OTHER')]['VALUE'].sum()
+
+    # Sinks
+    et_total = df[(df['CLASS'] == 'OUTFLOW') & (df['SUBCLASS'].str.contains('ET'))]['VALUE'].sum()
+    sw_out = df[(df['CLASS'] == 'OUTFLOW') & (df['SUBCLASS'] == 'SURFACE WATER')]['VALUE'].sum()
+    gw_out = df[(df['CLASS'] == 'OUTFLOW') & (df['SUBCLASS'] == 'GROUNDWATER')]['VALUE'].sum()
+    other_out = df[(df['CLASS'] == 'OUTFLOW') & (df['SUBCLASS'].str.contains('OTHER'))]['VALUE'].sum() # Treated WW etc
+
+    # Storage
+    ds_val = df[(df['CLASS'] == 'STORAGE') & (df['SUBCLASS'] == 'CHANGE')]['VALUE'].sum()
+
+    # Nodes: 0:Precip, 1:SW_In, 2:GW_In, 3:Other_In, 4:Basin, 5:ET, 6:SW_Out, 7:GW_Out, 8:Other_Out, 9:Storage_Pos, 10: Storage_Neg
+
+    label = ["Precipitation", "SW Inflow", "GW Inflow", "Other Inflow", "Basin Water",
+             "Evapotranspiration", "SW Outflow", "GW Outflow", "Other Outflow", "Storage Increase", "Storage Decrease"]
+    color = ["#60a5fa", "#3b82f6", "#1d4ed8", "#93c5fd", "#e2e8f0",
+             "#fbbf24", "#3b82f6", "#1d4ed8", "#94a3b8", "#10b981", "#ef4444"]
+
+    source = []
+    target = []
+    value = []
+
+    # Flows to Basin
+    if precip > 0: source.append(0); target.append(4); value.append(precip)
+    if sw_in > 0: source.append(1); target.append(4); value.append(sw_in)
+    if gw_in > 0: source.append(2); target.append(4); value.append(gw_in)
+    if other_in > 0: source.append(3); target.append(4); value.append(other_in)
+
+    # Storage decrease adds to Basin
+    if ds_val < 0:
+        source.append(10); target.append(4); value.append(abs(ds_val))
+
+    # Basin to Sinks
+    if et_total > 0: source.append(4); target.append(5); value.append(et_total)
+    if sw_out > 0: source.append(4); target.append(6); value.append(sw_out)
+    if gw_out > 0: source.append(4); target.append(7); value.append(gw_out)
+    if other_out > 0: source.append(4); target.append(8); value.append(other_out)
+
+    # Storage increase removes from Basin
+    if ds_val > 0:
+        source.append(4); target.append(9); value.append(ds_val)
+
+    fig_sankey = go.Figure(data=[go.Sankey(
+        node = dict(
+          pad = 15,
+          thickness = 20,
+          line = dict(color = "black", width = 0.5),
+          label = label,
+          color = color
+        ),
+        link = dict(
+          source = source,
+          target = target,
+          value = value
+        ))])
+
+    fig_sankey.update_layout(title_text=f"Water Resource Base ({start_year}-{end_year})", font_size=10)
+
+    # 2. Sectoral Bar Chart
+    # Identify sectors from VARIABLE. Common ones: Urban, Agri, Industry, Tourism, Environment
+    # If not explicit, we use what we have.
+    # In provided CSV: Urban, Agri.
+    # We look at OUTFLOW -> ET INCREMENTAL (Blue Water consumption) usually implies sectors
+    # Or OUTFLOW -> ET RAIN (Green Water consumption)
+
+    sector_df = df[
+        (df['CLASS'] == 'OUTFLOW') &
+        (df['SUBCLASS'].isin(['ET RAIN', 'ET INCREMENTAL'])) &
+        (df['VARIABLE'].isin(['Urban', 'Agri', 'Industry', 'Domestic', 'Livestock', 'Tourism']))
+    ]
+
+    if sector_df.empty:
+         # Fallback to whatever is available in ET INCREMENTAL excluding Natural
+         sector_df = df[
+            (df['CLASS'] == 'OUTFLOW') &
+            (df['SUBCLASS'] == 'ET INCREMENTAL') &
+            (~df['VARIABLE'].isin(['Natural', 'Manmade', 'Consumed Water']))
+        ]
+
+    if not sector_df.empty:
+        fig_bar = px.bar(sector_df, x='VARIABLE', y='VALUE', color='SUBCLASS',
+                         title="Water Consumption by Sector", barmode='stack',
+                         labels={'VALUE': 'Volume (Mm3)', 'VARIABLE': 'Sector'})
+        fig_bar.update_layout(plot_bgcolor='white')
+    else:
+        fig_bar = _empty_fig("No sectoral data identified")
+
+    # 3. Indicators
+    ind_df = get_indicators(basin, start_year, end_year)
+    ind_cards = []
+
+    if not ind_df.empty:
+        for _, row in ind_df.iterrows():
+            color_map = {'Red': '#ef4444', 'Orange': '#f97316', 'Yellow': '#eab308', 'Green': '#22c55e'}
+            color = color_map.get(row.get('TRAFFIC_LIGHT'), '#94a3b8')
+
+            card = html.Div([
+                html.H4(row['INDICATOR'], style={"fontSize": "16px", "marginBottom": "5px"}),
+                html.Div([
+                    html.Span(f"{row['VALUE']:.1f}", style={"fontSize": "24px", "fontWeight": "bold", "color": color}),
+                    html.Span(f" {row['UNIT']}", style={"fontSize": "14px", "color": "#64748b", "marginLeft": "4px"})
+                ]),
+                html.P(row.get('DEFINITION', ''), style={"fontSize": "12px", "color": "#94a3b8", "marginTop": "5px"})
+            ], style={
+                "borderLeft": f"4px solid {color}",
+                "backgroundColor": "white",
+                "padding": "15px",
+                "borderRadius": "4px",
+                "boxShadow": "0 1px 2px rgba(0,0,0,0.1)",
+                "width": "200px",
+                "display": "inline-block",
+                "margin": "10px",
+                "verticalAlign": "top"
+            })
+            ind_cards.append(card)
+    else:
+        ind_cards.append(html.Div("No indicators available."))
+
+    return fig_sankey, fig_bar, html.Div(ind_cards)
+
+
+# --- CLIMATE CALLBACKS ---
+# Reusing existing P/ET callbacks but extending for validation
+
 def _generate_explanation(vtype: str, basin: str, start_year: int, end_year: int, y_vals: np.ndarray, months: list):
     """Generate a dynamic explanation for the hydro graphs."""
     if len(y_vals) == 0 or not np.any(np.isfinite(y_vals)):
@@ -1369,17 +1774,53 @@ def update_et_outputs(basin, start_year, end_year):
     return _hydro_figs(basin, start_year, end_year, "ET")
 
 @app.callback(
-    [Output("lu-map-graph", "figure"), Output("lu-bar-graph", "figure"), Output("lu-explanation", "children")],
-    [Input("basin-dropdown", "value")],
+    [Output("val-p-scatter", "figure"), Output("val-et-scatter", "figure")],
+    [Input("basin-dropdown", "value")]
 )
-def update_lu_map(basin):
-    """Show static land use map for the latest available year and a bar chart of top 5 classes"""
-    if basin == "all" or not basin:
-        return _empty_fig("Select a specific basin to view land use data."), _empty_fig("Select a specific basin."), ""
+def update_validation_plots(basin):
+    if not basin or basin == "all":
+        return _empty_fig(), _empty_fig()
 
+    p_df = get_validation_data(basin, "P")
+    et_df = get_validation_data(basin, "ET")
+
+    def make_scatter(df, title):
+        if df.empty:
+            return _empty_fig(f"No validation data for {title}")
+
+        # Calculate R2
+        try:
+            r2 = np.corrcoef(df['Observed'], df['Satellite'])[0, 1]**2
+            rmse = np.sqrt(((df['Observed'] - df['Satellite']) ** 2).mean())
+
+            fig = px.scatter(df, x='Observed', y='Satellite', hover_data=['Station'],
+                             title=f"{title} (R²={r2:.2f}, RMSE={rmse:.1f})")
+            fig.add_trace(go.Scatter(x=df['Observed'], y=df['Observed'], mode='lines',
+                                     line=dict(color='red', dash='dash'), name='1:1 Line'))
+            return fig
+        except:
+             return _empty_fig("Error calculating validation metrics")
+
+    return make_scatter(p_df, "Precipitation Validation"), make_scatter(et_df, "ET Validation")
+
+
+# --- RESTORED SPATIAL CALLBACKS ---
+
+@app.callback(
+    [Output("lu-map-graph", "figure"), Output("lu-bar-graph", "figure"), Output("lu-explanation", "children"), Output("lu-et-p-bar", "figure")],
+    [Input("basin-dropdown", "value"),
+     Input("global-start-year-dropdown", "value"),
+     Input("global-end-year-dropdown", "value")],
+)
+def update_lu_map_and_coupling(basin, start_year, end_year):
+    """Show land use map and coupling with ET/P"""
+    if basin == "all" or not basin:
+        return _empty_fig("Select a specific basin."), _empty_fig(), "", _empty_fig()
+
+    # 1. LAND USE MAP (Static latest year usually)
     lu_fp = find_nc_file(basin, "LU")
     if not lu_fp:
-        return _empty_fig("Land Use data not found for this basin."), _empty_fig(), "Data missing."
+        return _empty_fig("Land Use data not found."), _empty_fig(), "Data missing.", _empty_fig()
     
     try:
         with _open_xr_dataset(lu_fp) as ds:
@@ -1391,19 +1832,19 @@ def update_lu_map(basin):
     except Exception:
         latest_year = 2020
 
-    da, _, msg = load_and_process_data(basin, "LU", year_start=latest_year, year_end=latest_year)
-    if da is None:
-        return _empty_fig(f"Land Use data not available: {msg or ''}"), _empty_fig(), "Data unavailable."
+    da_lu, _, msg = load_and_process_data(basin, "LU", year_start=latest_year, year_end=latest_year)
+    if da_lu is None:
+        return _empty_fig(f"Land Use data unavailable: {msg or ''}"), _empty_fig(), "Data unavailable.", _empty_fig()
 
-    vals = np.asarray(da.values)
+    vals = np.asarray(da_lu.values)
     finite_vals = vals[np.isfinite(vals)]
     if finite_vals.size == 0:
-        return _empty_fig("No valid land use classes found"), _empty_fig(), "No valid data."
+        return _empty_fig("No valid land use classes found"), _empty_fig(), "No valid data.", _empty_fig()
 
     # --- MAP GENERATION ---
     class_list = sorted(np.unique(finite_vals).astype(int).tolist())
-    x = np.asarray(da["longitude"].values)
-    y = np.asarray(da["latitude"].values)
+    x = np.asarray(da_lu["longitude"].values)
+    y = np.asarray(da_lu["latitude"].values)
 
     idx_map = {c: i for i, c in enumerate(class_list)}
     z_idx = np.full(vals.shape, np.nan, dtype=float)
@@ -1429,16 +1870,8 @@ def update_lu_map(basin):
                        name=name, showlegend=True, hoverinfo="skip")
         )
 
-    actual_year = latest_year
-    try:
-        if "time" in da.coords and da.sizes.get("time", 0) > 0:
-            time_val = pd.to_datetime(da["time"].values).item()
-            actual_year = time_val.year
-    except Exception:
-        pass
-
     fig_map.update_layout(
-        title=f"Land Use / Land Cover - {actual_year}",
+        title=f"Land Use / Land Cover - {latest_year}",
         xaxis_title="Longitude",
         yaxis_title="Latitude",
         yaxis=dict(scaleanchor="x", scaleratio=1),
@@ -1450,68 +1883,104 @@ def update_lu_map(basin):
     fig_map = add_shapefile_to_fig(fig_map, basin)
 
     # --- BAR CHART & EXPLANATION GENERATION ---
-    try:
-        unique, counts = np.unique(finite_vals, return_counts=True)
-        total_pixels = counts.sum()
-        
-        # Create DataFrame for easier sorting
-        lu_stats = []
-        for u, c in zip(unique, counts):
-            cid = int(u)
-            cname = class_info.get(cid, {"name": f"Class {cid}"})["name"]
-            ccolor = class_info.get(cid, {"color": "gray"})["color"]
-            pct = (c / total_pixels) * 100
-            lu_stats.append({"class_id": cid, "class_name": cname, "percentage": pct, "color": ccolor})
-        
-        df_lu = pd.DataFrame(lu_stats)
-        df_lu = df_lu.sort_values("percentage", ascending=False)
-        
-        # Top 5
-        top5 = df_lu.head(5)
-        
-        # Bar Chart
-        fig_bar = px.bar(
-            top5, 
-            x="percentage", 
-            y="class_name", 
-            orientation='h',
-            title=f"Top 5 Land Use Types ({actual_year})",
-            labels={"percentage": "Coverage (%)", "class_name": "Land Use Type"},
-            text="percentage"
-        )
-        
-        fig_bar.update_traces(
-            marker_color=top5["color"].tolist(),
-            texttemplate='%{text:.1f}%', 
-            textposition='outside'
-        )
-        
-        fig_bar.update_layout(
-            yaxis={'categoryorder':'total ascending'}, # ensure sorted order in visual
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(color="#1e293b"),
-            margin=dict(l=10, r=20, t=40, b=10)
-        )
+    unique, counts = np.unique(finite_vals, return_counts=True)
+    total_pixels = counts.sum()
 
-        # Explanation
-        top_names = top5["class_name"].tolist()
-        top_pcts = top5["percentage"].tolist()
-        
-        explanation_items = [f"**{name}** ({pct:.1f}%)" for name, pct in zip(top_names, top_pcts)]
-        explanation_str = ", ".join(explanation_items)
-        
-        explanation = (f"**Land Use Analysis ({actual_year}):** "
-                       f"The most dominant land use type in the basin is **{top_names[0]}**, covering **{top_pcts[0]:.1f}%** of the area. "
-                       f"Other significant land use types include {', '.join(explanation_items[1:])}. "
-                       f"This distribution reflects the basin's ecological and anthropogenic characteristics.")
+    lu_stats = []
+    for u, c in zip(unique, counts):
+        cid = int(u)
+        cname = class_info.get(cid, {"name": f"Class {cid}"})["name"]
+        ccolor = class_info.get(cid, {"color": "gray"})["color"]
+        pct = (c / total_pixels) * 100
+        lu_stats.append({"class_id": cid, "class_name": cname, "percentage": pct, "color": ccolor})
 
-    except Exception as e:
-        print(f"Error generating LU bar/stats: {e}")
-        fig_bar = _empty_fig("Error calculating statistics")
-        explanation = "Error generating explanation."
+    df_lu = pd.DataFrame(lu_stats)
+    df_lu = df_lu.sort_values("percentage", ascending=False)
 
-    return fig_map, fig_bar, dcc.Markdown(explanation)
+    top5 = df_lu.head(5)
+
+    fig_bar = px.bar(
+        top5,
+        x="percentage",
+        y="class_name",
+        orientation='h',
+        title=f"Top 5 Land Use Types ({latest_year})",
+        labels={"percentage": "Coverage (%)", "class_name": "Land Use Type"},
+        text="percentage"
+    )
+
+    fig_bar.update_traces(
+        marker_color=top5["color"].tolist(),
+        texttemplate='%{text:.1f}%',
+        textposition='outside'
+    )
+
+    fig_bar.update_layout(
+        yaxis={'categoryorder':'total ascending'},
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(color="#1e293b"),
+        margin=dict(l=10, r=20, t=40, b=10)
+    )
+
+    top_names = top5["class_name"].tolist()
+    top_pcts = top5["percentage"].tolist()
+    explanation_items = [f"**{name}** ({pct:.1f}%)" for name, pct in zip(top_names, top_pcts)]
+    explanation = (f"**Land Use Analysis ({latest_year}):** "
+                   f"The most dominant land use type in the basin is **{top_names[0]}**, covering **{top_pcts[0]:.1f}%** of the area. "
+                   f"Other significant land use types include {', '.join(explanation_items[1:])}.")
+
+    # --- 2. LAND USE COUPLING (ET/P by Class) ---
+    # Need P and ET data for the selected range.
+    fig_coupling = _empty_fig("Select year range for coupling analysis")
+
+    if start_year and end_year:
+        ys, ye = int(start_year), int(end_year)
+        da_p, _, _ = load_and_process_data(basin, "P", year_start=ys, year_end=ye)
+        da_et, _, _ = load_and_process_data(basin, "ET", year_start=ys, year_end=ye)
+
+        if da_p is not None and da_et is not None:
+            # Align P and ET first (usually same grid)
+            da_p, da_et = xr.align(da_p, da_et, join="inner")
+
+            # Interpolate LU to match P/ET grid (categorical nearest neighbor)
+            # This handles different resolutions/grids
+            da_lu_aligned = da_lu.interp_like(da_p, method="nearest")
+
+            # Masking
+            p_vals = da_p.values.flatten()
+            et_vals = da_et.values.flatten()
+            lu_vals = da_lu_aligned.values.flatten()
+
+            valid_mask = np.isfinite(p_vals) & np.isfinite(et_vals) & np.isfinite(lu_vals)
+
+            if np.any(valid_mask):
+                p_valid = p_vals[valid_mask]
+                et_valid = et_vals[valid_mask]
+                lu_valid = lu_vals[valid_mask]
+
+                coupling_stats = []
+                for cid in class_list:
+                    mask = np.isclose(lu_valid, cid)
+                    if np.any(mask):
+                        mean_p = np.mean(p_valid[mask])
+                        mean_et = np.mean(et_valid[mask])
+                        cname = class_info.get(cid, {"name": f"{cid}"})["name"]
+                        coupling_stats.append({"Class": cname, "Type": "Precipitation", "Value": mean_p})
+                        coupling_stats.append({"Class": cname, "Type": "Evapotranspiration", "Value": mean_et})
+
+                df_coupling = pd.DataFrame(coupling_stats)
+
+                # Filter to top classes by area if too many
+                top_classes = df_lu.head(8)["class_name"].tolist()
+                df_coupling = df_coupling[df_coupling["Class"].isin(top_classes)]
+
+                fig_coupling = px.bar(df_coupling, x="Class", y="Value", color="Type", barmode="group",
+                                      title=f"Mean P and ET by Land Use Class ({ys}-{ye})",
+                                      labels={"Value": "mm/year"})
+                fig_coupling.update_layout(plot_bgcolor='white')
+
+    return fig_map, fig_bar, dcc.Markdown(explanation), fig_coupling
 
 @app.callback(
     [Output("p-et-map-graph", "figure"), Output("p-et-bar-graph", "figure"), Output("p-et-explanation", "children")],
@@ -1578,6 +2047,20 @@ def update_p_et_outputs(basin, start_year, end_year):
         explanation = "Error generating explanation."
 
     return fig_map, fig_bar, dcc.Markdown(explanation)
+
+
+# --- REPORT CALLBACK ---
+
+@app.callback(
+    Output("report-content", "children"),
+    [Input("basin-dropdown", "value"), Input("report-tabs", "value")]
+)
+def update_report_content(basin, tab):
+    if not basin or basin == "all":
+        return "Select a basin to view reports."
+
+    text = read_text_section(basin, tab)
+    return dcc.Markdown(text)
 
 
 # =====
