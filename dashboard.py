@@ -564,8 +564,18 @@ def _empty_fig(msg="No data to display"):
 # =========================
 
 def make_basin_selector_map(selected_basin=None) -> go.Figure:
-    gdf = ALL_BASINS_GDF if (not selected_basin or selected_basin == "all") else ALL_BASINS_GDF[ALL_BASINS_GDF["basin"] == selected_basin]
+    is_global = not selected_basin or selected_basin == "all" or selected_basin == "none"
+    gdf = ALL_BASINS_GDF if is_global else ALL_BASINS_GDF[ALL_BASINS_GDF["basin"] == selected_basin]
+
     if gdf is None or gdf.empty:
+        if is_global:
+             # Default global map if no shapefiles
+             fig = go.Figure(go.Scattermapbox())
+             fig.update_layout(
+                mapbox=dict(style="carto-positron", center=dict(lon=0, lat=20), zoom=1.5),
+                margin=dict(l=0, r=0, t=0, b=0), height=400
+             )
+             return fig
         return _empty_fig("No basin shapefiles found.")
 
     gj = basins_geojson(gdf)
@@ -575,31 +585,38 @@ def make_basin_selector_map(selected_basin=None) -> go.Figure:
     ch = go.Choroplethmapbox(
         geojson=gj, locations=locations, featureidkey="properties.basin", z=z_vals,
         colorscale=[[0, "rgba(43, 88, 122, 0.4)"], [1, "rgba(43, 88, 122, 0.4)"]], # Theme color with alpha
-        marker=dict(line=dict(width=3 if selected_basin and selected_basin != "all" else 1.8, color=THEME_COLOR)),
+        marker=dict(line=dict(width=3 if not is_global else 1.8, color=THEME_COLOR)),
         hovertemplate="%{location}<extra></extra>", showscale=False,
     )
     fig = go.Figure(ch)
 
-    minx, miny, maxx, maxy = gdf.total_bounds
-    pad_x = (maxx - minx) * 0.08 if maxx > minx else 0.1
-    pad_y = (maxy - miny) * 0.08 if maxy > miny else 0.1
-    west, east = float(minx - pad_x), float(maxx + pad_x)
-    south, north = float(miny - pad_y), float(maxy + pad_y)
+    if is_global:
+        center_lon = 0
+        center_lat = 20
+        zoom = 1.2
+    else:
+        minx, miny, maxx, maxy = gdf.total_bounds
+        pad_x = (maxx - minx) * 0.08 if maxx > minx else 0.1
+        pad_y = (maxy - miny) * 0.08 if maxy > miny else 0.1
+        west, east = float(minx - pad_x), float(maxx + pad_x)
+        south, north = float(miny - pad_y), float(maxy + pad_y)
 
-    center_lon = (west + east) / 2.0
-    center_lat = (south + north) / 2.0
-    span_lon = max(east - west, 0.001)
-    span_lat = max(north - south, 0.001)
+        center_lon = (west + east) / 2.0
+        center_lat = (south + north) / 2.0
+        span_lon = max(east - west, 0.001)
+        span_lat = max(north - south, 0.001)
 
-    import math
-    map_w, map_h = 900.0, 600.0
-    lon_zoom = math.log2(360.0 / (span_lon * 1.1)) + math.log2(map_w / 512.0)
-    lat_zoom = math.log2(180.0 / (span_lat * 1.1)) + math.log2(map_h / 512.0)
-    zoom = max(0.0, min(16.0, lon_zoom, lat_zoom))
+        import math
+        map_w, map_h = 900.0, 600.0
+        lon_zoom = math.log2(360.0 / (span_lon * 1.1)) + math.log2(map_w / 512.0)
+        lat_zoom = math.log2(180.0 / (span_lat * 1.1)) + math.log2(map_h / 512.0)
+        zoom = max(0.0, min(16.0, lon_zoom, lat_zoom))
 
     fig.update_layout(
         mapbox=dict(style="carto-positron", center=dict(lon=center_lon, lat=center_lat), zoom=zoom),
-        margin=dict(l=0, r=0, t=0, b=0), uirevision=selected_basin if selected_basin else "all", clickmode="event+select", height=400,
+        margin=dict(l=0, r=0, t=0, b=0),
+        uirevision=selected_basin if selected_basin and selected_basin != "none" else "global",
+        clickmode="event+select", height=400,
     )
     return fig
 
@@ -1364,8 +1381,10 @@ def update_lu_map_and_coupling(basin):
         font=dict(color="#1e293b"), margin=dict(l=50, r=50, t=60, b=50),
         legend=dict(
             title="Land Use Classes",
-            yanchor="top", y=1.02,
-            xanchor="left", x=1.02
+            yanchor="top", y=1.0,
+            xanchor="left", x=1.01,
+            font=dict(size=10),
+            itemsizing='constant'
         )
     )
 
