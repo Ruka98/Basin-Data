@@ -1022,9 +1022,10 @@ def render_tab_content(active_tab):
                                 ])
                             ], style={"width": "30%", "display": "inline-block", "verticalAlign": "top"}),
 
-                            # Right Column (Map + Table)
+                            # Right Column (Maps + Table)
                             html.Div([
-                                    dcc.Loading(dcc.Graph(id="basin-map", style={"height": "400px", "borderRadius": "8px", "overflow": "hidden"}), type="circle"),
+                                    dcc.Loading(dcc.Graph(id="osm-basin-map", style={"height": "400px", "borderRadius": "8px", "overflow": "hidden", "marginBottom": "20px"}), type="circle"),
+                                    dcc.Loading(dcc.Graph(id="land-use-map", style={"height": "500px", "borderRadius": "8px", "overflow": "hidden"}), type="circle"),
                                     html.Div(id="basin-lu-table-container", style={"marginTop": "20px", "overflowX": "auto"})
                             ], style={"width": "68%", "display": "inline-block", "marginLeft": "2%", "verticalAlign": "top", "boxShadow": "0 4px 12px rgba(0,0,0,0.1)", "borderRadius": "8px", "padding": "10px", "backgroundColor": "white"})
                         ])
@@ -1037,14 +1038,25 @@ def render_tab_content(active_tab):
     return html.Div("404")
 
 @app.callback(
-    Output("basin-map", "figure"),
+    Output("osm-basin-map", "figure"),
     [Input("basin-dropdown", "value")]
 )
-def update_map(basin):
-    if not basin or basin == "none":
-        return make_basin_selector_map(selected_basin=None)
+def update_osm_map(basin):
+    # This callback renders the OSM map with the basin shapefile.
+    # If no basin is selected, it shows all basins.
+    # If a basin is selected, it shows that basin zoomed in.
+    return make_basin_selector_map(selected_basin=basin)
 
-    # If basin is selected, show Land Use Map
+@app.callback(
+    Output("land-use-map", "figure"),
+    [Input("basin-dropdown", "value")]
+)
+def update_land_use_map(basin):
+    # This callback renders the Land Use Heatmap.
+    # If no basin is selected, it returns an empty figure.
+    if not basin or basin == "none":
+        return _empty_fig("Select a basin to view Land Use.")
+
     fig, _ = update_lu_map_and_coupling(basin)
     return fig
 
@@ -1059,13 +1071,19 @@ def update_lu_table_callback(basin):
 
 @app.callback(
     Output("basin-dropdown", "value"),
-    [Input("basin-map", "clickData")],
+    [Input("osm-basin-map", "clickData")],
     [State("basin-dropdown", "value")]
 )
 def map_click(clickData, current):
-    # If a basin is already selected (current is not None), map is Cartesian.
-    # We should ignore clicks unless we want to implement logic to deselect or something.
+    # If a basin is already selected (current is not None),
+    # we might want to allow re-selection from the OSM map if we support clicking.
+    # However, `make_basin_selector_map` only draws the selected basin when one is selected.
+    # So you can't easily click another.
+    # But if the user selects "Select a Basin..." (none), the map shows all.
+
     if current and current != "none":
+        # If we are zoomed in, maybe we don't change selection by click?
+        # Or maybe we do if they click the shape? But there's only one.
         return current
 
     if clickData and "points" in clickData:
@@ -1294,7 +1312,8 @@ def update_p_et_outputs(basin, start_year, end_year):
 def update_lu_map_and_coupling(basin):
     if not basin or basin == "none": return _empty_fig(), _empty_fig()
 
-    da_lu, _, _ = load_and_process_data(basin, "LU", year_start=2020, year_end=2020)
+    # Load LU data without hardcoded year 2020. This will default to the latest available time slice in load_and_process_data.
+    da_lu, _, _ = load_and_process_data(basin, "LU")
     
     if da_lu is None: return _empty_fig("No LU Data"), _empty_fig()
 
@@ -1304,24 +1323,10 @@ def update_lu_map_and_coupling(basin):
     # Create discrete colorscale logic
     unique_vals = np.unique(z_vals)
     unique_vals = unique_vals[~np.isnan(unique_vals)] # Filter out NaN values
-    tickvals = []
-    ticktext = []
-    for v in unique_vals:
-        if not np.isfinite(v):
-            continue
-        if v in class_info:
-            tickvals.append(v)
-            ticktext.append(class_info[v]["name"])
-        else:
-            try:
-                tickvals.append(v)
-                ticktext.append(str(int(v)))
-            except (ValueError, TypeError):
-                continue
 
-    # Max ID typically around 80. Use 81 for range.
-    max_val = 81
+    # Map colors
     colorscale = []
+    max_val = 81
     for i in range(max_val):
         color = class_info.get(i, {"color": "rgb(200,200,200)"})["color"]
         norm_start = i / float(max_val)
@@ -1334,22 +1339,39 @@ def update_lu_map_and_coupling(basin):
         x=x, y=y,
         colorscale=colorscale,
         zmin=0, zmax=max_val,
-        colorbar=dict(
-            tickvals=[t + 0.5 for t in tickvals], # Shift ticks to center of color bin
-            ticktext=ticktext,
-            title="Land Use Class",
-            tickmode="array"
-        ),
+        showscale=False, # Hide the colorbar as per requirement
         hoverinfo="x+y+z",
         hovertemplate='Longitude: %{x:.2f}<br>Latitude: %{y:.2f}<br>Class: %{z}<extra></extra>'
     ))
+
+    # Add discrete legend items (circles)
+    for v in unique_vals:
+        if not np.isfinite(v):
+            continue
+        c_info = class_info.get(int(v), {})
+        name = c_info.get("name", str(int(v)))
+        color = c_info.get("color", "gray")
+
+        # Add a dummy scatter trace for the legend
+        fig_map.add_trace(go.Scatter(
+            x=[None], y=[None],
+            mode='markers',
+            marker=dict(size=10, color=color),
+            name=name,
+            showlegend=True
+        ))
 
     fig_map.update_layout(
         title=dict(text="Land Use Map", x=0.5, xanchor='center'),
         xaxis_title="Longitude", yaxis_title="Latitude",
         yaxis=dict(scaleanchor="x", scaleratio=1),
         plot_bgcolor='white', paper_bgcolor='white',
-        font=dict(color="#1e293b"), margin=dict(l=50, r=50, t=60, b=50)
+        font=dict(color="#1e293b"), margin=dict(l=50, r=50, t=60, b=50),
+        legend=dict(
+            title="Land Use Classes",
+            yanchor="top", y=1.02,
+            xanchor="left", x=1.02
+        )
     )
 
     fig_map = add_shapefile_to_fig(fig_map, basin)
@@ -1460,8 +1482,6 @@ def update_wa_wrapper(basin, start, end):
 def update_val_wrapper(basin):
     return update_validation_plots(basin)
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 7860)), debug=False)
 @app.callback(
     Output("study-area-text", "children"),
     [Input("basin-dropdown", "value")]
@@ -1474,3 +1494,6 @@ def update_study_area_text(basin):
     if "No text available" in text:
         text = read_basin_text(basin, "studyarea.txt")
     return text
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 7860)), debug=False)
