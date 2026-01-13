@@ -567,7 +567,7 @@ def make_basin_selector_map(selected_basin=None) -> go.Figure:
 
     ch = go.Choroplethmapbox(
         geojson=gj, locations=locations, featureidkey="properties.basin", z=z_vals,
-        colorscale=[[0, "rgba(0, 150, 57, 0.4)"], [1, "rgba(0, 150, 57, 0.4)"]], # IWMI Greenish tint
+        colorscale=[[0, "rgba(0, 78, 162, 0.4)"], [1, "rgba(0, 78, 162, 0.4)"]], # IWMI Blueish tint
         marker=dict(line=dict(width=3 if selected_basin and selected_basin != "all" else 1.8, color="rgb(0, 78, 162)")), # IWMI Blue border
         hovertemplate="%{location}<extra></extra>", showscale=False,
     )
@@ -687,24 +687,25 @@ class_info = {
 
 app = dash.Dash(__name__, suppress_callback_exceptions=True)
 
-# IWMI Colors
+# IWMI Colors (Updated to Blue Theme)
 MODERN_STYLES = {
     "container": {
         "maxWidth": "1400px",
         "margin": "0 auto",
         "padding": "0px",
         "fontFamily": "'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-        "backgroundColor": "#ffffff",
+        "backgroundColor": "#f4f6f9",
         "minHeight": "100vh",
         "color": "#333333"
     },
     "header_bar": {
         "backgroundColor": "white",
-        "borderBottom": "4px solid #009639", # IWMI Green
+        "borderBottom": "4px solid #004ea2", # IWMI Blue
         "padding": "20px 40px",
         "display": "flex",
         "justifyContent": "space-between",
-        "alignItems": "center"
+        "alignItems": "center",
+        "boxShadow": "0 2px 10px rgba(0,0,0,0.05)"
     },
     "header_title": {
         "color": "#004ea2", # IWMI Blue
@@ -714,33 +715,37 @@ MODERN_STYLES = {
     },
     "section_container": {
         "padding": "40px 40px",
-        "backgroundColor": "white"
+        "backgroundColor": "white",
+        "marginBottom": "20px",
+        "borderRadius": "8px",
+        "boxShadow": "0 2px 4px rgba(0,0,0,0.02)"
     },
     "section_title": {
-        "color": "#009639", # IWMI Green
+        "color": "#004ea2", # IWMI Blue
         "fontSize": "1.8rem",
         "fontWeight": "600",
-        "marginBottom": "20px",
+        "marginBottom": "25px",
         "borderBottom": "1px solid #eee",
         "paddingBottom": "10px"
     },
     "text_content": {
         "fontSize": "1.1rem",
         "lineHeight": "1.8",
-        "color": "#444",
-        "maxWidth": "1000px"
+        "color": "#2c3e50", # Darker interactive color
+        "maxWidth": "1000px",
+        "textAlign": "justify"
     },
     "card": {
         "backgroundColor": "white",
-        "borderRadius": "4px",
-        "padding": "20px",
-        "marginBottom": "20px",
-        "boxShadow": "0 2px 4px rgba(0,0,0,0.1)",
-        "border": "1px solid #e0e0e0"
+        "borderRadius": "8px",
+        "padding": "25px",
+        "marginBottom": "25px",
+        "boxShadow": "0 4px 6px rgba(0,0,0,0.05)",
+        "border": "1px solid #edf2f7"
     },
     "dropdown": {
         "borderRadius": "4px",
-        "border": "1px solid #ccc"
+        "border": "1px solid #cbd5e1"
     }
 }
 
@@ -830,21 +835,27 @@ app.layout = html.Div(
             dcc.Markdown(INTRO_TEXT, style=MODERN_STYLES["text_content"])
         ]),
 
-        # 3. Objectives (Common)
+        # 3. Objectives and Deliverables (Renamed from Objectives)
         html.Div(style={**MODERN_STYLES["section_container"], "backgroundColor": "#f8f9fa"}, children=[
             html.H2("2. Objectives and Deliverables", style=MODERN_STYLES["section_title"]),
             dcc.Markdown(OBJECTIVES_TEXT, style=MODERN_STYLES["text_content"])
         ]),
 
-        # 4. Basin Selection Area & Study Area Details
+        # 4. Customized WA+ Analytics (Moved up)
+        html.Div(style=MODERN_STYLES["section_container"], children=[
+            html.H2("3. Customized WA+ Analytics for Jordan", style=MODERN_STYLES["section_title"]),
+            dcc.Markdown(WA_FRAMEWORK_TEXT, style=MODERN_STYLES["text_content"])
+        ]),
+
+        # 5. Basin Selection
         html.Div(
-            style={"backgroundColor": "white", "padding": "40px", "borderTop": "1px solid #ddd"},
+            style={"backgroundColor": "white", "padding": "40px", "marginTop": "20px", "boxShadow": "0 -2px 10px rgba(0,0,0,0.05)"},
             children=[
                 html.Div(style={"maxWidth": "1200px", "margin": "0 auto"}, children=[
-                    html.H3("2.1 Select Basin", style={"color": "#004ea2", "marginBottom": "20px"}),
+                    html.H3("4. Select Basin", style={"color": "#004ea2", "marginBottom": "20px", "fontWeight": "600", "fontSize": "1.8rem"}),
                     html.Div([
                         html.Div([
-                             html.Label("Choose from list:", style={"fontWeight": "bold", "marginBottom": "10px", "display": "block"}),
+                             html.Label("Choose from list:", style={"fontWeight": "bold", "marginBottom": "10px", "display": "block", "color": "#004ea2"}),
                              dcc.Dropdown(
                                 id="basin-dropdown",
                                 options=basin_options,
@@ -853,18 +864,18 @@ app.layout = html.Div(
                                 style=MODERN_STYLES["dropdown"]
                             ),
                             # Study Area Text Area
-                            html.Div(id="study-area-container", style={"marginTop": "20px", "padding": "15px", "backgroundColor": "#f4f4f4", "borderRadius": "4px", "fontSize": "0.95rem", "lineHeight": "1.6", "color": "#444"})
+                            html.Div(id="study-area-container", style={"marginTop": "20px", "padding": "20px", "backgroundColor": "#f0f4f8", "borderRadius": "8px", "fontSize": "1rem", "lineHeight": "1.8", "color": "#2c3e50", "textAlign": "justify", "borderLeft": "4px solid #004ea2"})
                         ], style={"width": "30%", "display": "inline-block", "verticalAlign": "top"}),
 
                         html.Div([
-                             dcc.Graph(id="basin-map", style={"height": "400px", "borderRadius": "4px", "overflow": "hidden"})
-                        ], style={"width": "68%", "display": "inline-block", "marginLeft": "2%", "verticalAlign": "top", "boxShadow": "0 2px 8px rgba(0,0,0,0.1)"})
+                             dcc.Graph(id="basin-map", style={"height": "400px", "borderRadius": "8px", "overflow": "hidden"})
+                        ], style={"width": "68%", "display": "inline-block", "marginLeft": "2%", "verticalAlign": "top", "boxShadow": "0 4px 12px rgba(0,0,0,0.1)", "borderRadius": "8px"})
                     ])
                 ])
             ]
         ),
 
-        # 5. Dynamic Content Area (WA+ Framework -> Inputs -> Results)
+        # 6. Dynamic Content Area
         html.Div(id="dynamic-content")
     ]
 )
@@ -936,7 +947,8 @@ def get_year_options(basin):
 
 # Layout generators
 
-def get_wa_inputs_layout(basin):
+def get_land_use_layout(basin):
+    """Generates the Land Use section (Static / Last Year)."""
     # Read Land Use Text
     lu_text = read_basin_text(basin, "lu.txt")
 
@@ -959,85 +971,90 @@ def get_wa_inputs_layout(basin):
             style_table={'overflowX': 'auto'},
             style_cell={
                 'textAlign': 'left',
-                'padding': '10px',
-                'fontFamily': 'Segoe UI, sans-serif'
+                'padding': '12px',
+                'fontFamily': 'Segoe UI, sans-serif',
+                'border': '1px solid #e2e8f0'
             },
             style_header={
-                'backgroundColor': '#f8f9fa',
+                'backgroundColor': '#eff6ff', # Light blue
                 'fontWeight': 'bold',
-                'color': '#004ea2'
+                'color': '#004ea2',
+                'border': '1px solid #e2e8f0'
             },
             style_data_conditional=[
-                 {'if': {'row_index': 'odd'}, 'backgroundColor': 'rgb(248, 248, 248)'}
+                 {'if': {'row_index': 'odd'}, 'backgroundColor': '#f8fafc'}
             ]
         )
 
     return html.Div([
-        html.H3("2.3 WA+ INPUT REMOTE SENSING DATA", style={"color": "#004ea2", "marginTop": "40px", "borderBottom": "2px solid #004ea2", "paddingBottom": "10px"}),
+        html.H3("Land Use (Latest Year)", style={"color": "#004ea2", "marginTop": "20px", "borderBottom": "2px solid #004ea2", "paddingBottom": "10px"}),
 
-        # Land Use Subsection
-        html.H4("Land Use", style={"color": "#009639", "marginTop": "20px"}),
         dcc.Markdown(lu_text, style=MODERN_STYLES["text_content"]),
         html.Div(table_component, style={"marginTop": "20px", "marginBottom": "30px", "overflowX": "auto"}),
         html.Div([
-            html.Div(dcc.Loading(dcc.Graph(id="lu-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block"}),
-            html.Div(dcc.Loading(dcc.Graph(id="lu-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right"}),
+            html.Div(dcc.Loading(dcc.Graph(id="lu-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
+            html.Div(dcc.Loading(dcc.Graph(id="lu-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
         ]),
+    ], id="section-land-use")
 
+def get_climate_inputs_layout(basin):
+    """Generates Precipitation, ET, and Validation sections."""
+    return html.Div([
         # Precipitation Subsection
-        html.H4("Precipitation", style={"color": "#009639", "marginTop": "40px"}),
+        html.H4("Precipitation", style={"color": "#004ea2", "marginTop": "40px", "fontSize": "1.5rem"}),
         html.Div([
-            html.Div(dcc.Loading(dcc.Graph(id="p-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block"}),
-            html.Div(dcc.Loading(dcc.Graph(id="p-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right"}),
+            html.Div(dcc.Loading(dcc.Graph(id="p-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
+            html.Div(dcc.Loading(dcc.Graph(id="p-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
         ]),
         html.Div(id="p-explanation", style=MODERN_STYLES["card"]),
 
         # ET Subsection
-        html.H4("Evapotranspiration", style={"color": "#009639", "marginTop": "40px"}),
+        html.H4("Evapotranspiration", style={"color": "#004ea2", "marginTop": "40px", "fontSize": "1.5rem"}),
         html.Div([
-            html.Div(dcc.Loading(dcc.Graph(id="et-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block"}),
-            html.Div(dcc.Loading(dcc.Graph(id="et-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right"}),
+            html.Div(dcc.Loading(dcc.Graph(id="et-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
+            html.Div(dcc.Loading(dcc.Graph(id="et-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
         ]),
         html.Div(id="et-explanation", style=MODERN_STYLES["card"]),
 
         # Validation
-        html.H4("Data Validation", style={"color": "#009639", "marginTop": "40px"}),
+        html.H4("Data Validation", style={"color": "#004ea2", "marginTop": "40px", "fontSize": "1.5rem"}),
          html.Div([
-             html.Div(dcc.Graph(id="val-p-scatter"), style={"width": "49%", "display": "inline-block"}),
-             html.Div(dcc.Graph(id="val-et-scatter"), style={"width": "49%", "display": "inline-block", "float": "right"})
+             html.Div(dcc.Graph(id="val-p-scatter"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
+             html.Div(dcc.Graph(id="val-et-scatter"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"})
         ])
+    ], id="section-climate-inputs")
 
-    ], id="section-inputs")
 
 def get_results_layout(basin):
     return html.Div([
-        html.H3("3. Results", style={"color": "#004ea2", "marginTop": "40px", "borderBottom": "2px solid #004ea2", "paddingBottom": "10px"}),
+        html.H3("Results", style={"color": "#004ea2", "marginTop": "40px", "borderBottom": "2px solid #004ea2", "paddingBottom": "10px"}),
 
         # Overview
-        html.H4("Basin Overview", style={"color": "#009639"}),
+        html.H4("Basin Overview", style={"color": "#004ea2", "fontSize": "1.5rem"}),
         html.Div(id="basin-overview-content"),
 
         # Water Balance
-        html.H4("Water Balance (P - ET)", style={"color": "#009639", "marginTop": "30px"}),
+        html.H4("Water Balance (P - ET)", style={"color": "#004ea2", "marginTop": "30px", "fontSize": "1.5rem"}),
         html.Div([
-            html.Div(dcc.Loading(dcc.Graph(id="p-et-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block"}),
-            html.Div(dcc.Loading(dcc.Graph(id="p-et-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right"}),
+            html.Div(dcc.Loading(dcc.Graph(id="p-et-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
+            html.Div(dcc.Loading(dcc.Graph(id="p-et-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
         ]),
         html.Div(id="p-et-explanation", style=MODERN_STYLES["card"]),
 
         # WA+ Sheets
-        html.H4("Water Accounting Reports", style={"color": "#009639", "marginTop": "30px"}),
+        html.H4("Water Accounting Reports", style={"color": "#004ea2", "marginTop": "30px", "fontSize": "1.5rem"}),
         dcc.Loading(dcc.Graph(id="wa-resource-base-sankey"), type="circle"),
         dcc.Loading(dcc.Graph(id="wa-sectoral-bar"), type="circle"),
+        html.Div(id="wa-indicators-container"), # Added container for indicators
 
         # Reports Tabs
-        html.H4("Documentation", style={"color": "#009639", "marginTop": "40px"}),
+        html.H4("Documentation", style={"color": "#004ea2", "marginTop": "40px", "fontSize": "1.5rem"}),
         html.Div([
             dcc.Tabs(id="inner-report-tabs", value="assumptions", vertical=True, children=[
-                dcc.Tab(label="Assumptions", value="assumptions"),
-                dcc.Tab(label="Limitations", value="limitations"),
+                dcc.Tab(label="Assumptions", value="assumptions", style={'color': '#004ea2'}, selected_style={'fontWeight': 'bold', 'color': '#004ea2', 'borderLeft': '3px solid #004ea2'}),
+                dcc.Tab(label="Limitations", value="limitations", style={'color': '#004ea2'}, selected_style={'fontWeight': 'bold', 'color': '#004ea2', 'borderLeft': '3px solid #004ea2'}),
             ], style={"height": "300px", "width": "20%", "display": "inline-block", "verticalAlign": "top"}),
-            html.Div(id="report-content", style={"width": "75%", "display": "inline-block", "marginLeft": "2%", "padding": "20px", "backgroundColor": "white", "border": "1px solid #ddd"})
+            html.Div(id="report-content", style={"width": "75%", "display": "inline-block", "marginLeft": "2%", "padding": "25px", "backgroundColor": "white", "borderRadius": "8px", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "border": "1px solid #eee"})
         ])
     ], id="section-results")
 
@@ -1048,8 +1065,8 @@ def get_results_layout(basin):
 def render_basin_content(basin):
     if not basin or basin == "none" or basin == "all":
         return html.Div(
-            style={"padding": "60px", "textAlign": "center", "color": "#666"},
-            children=[html.H3("Please select a basin above to view the analysis.")]
+            style={"padding": "80px", "textAlign": "center", "color": "#64748b"},
+            children=[html.H3("Please select a basin above to view the analysis.", style={"color": "#004ea2"})]
         )
 
     # Get years
@@ -1059,32 +1076,31 @@ def render_basin_content(basin):
 
     content = []
 
-    # 1. Customized WA+ Framework (Static/Common)
-    content.append(html.Div(style={**MODERN_STYLES["section_container"], "backgroundColor": "#f8f9fa"}, children=[
-        html.H2("2.2 Customized WA+ Analytical Framework for Jordan", style=MODERN_STYLES["section_title"]),
-        dcc.Markdown(WA_FRAMEWORK_TEXT, style=MODERN_STYLES["text_content"])
+    # 1. Land Use Section (Fixed/Latest Year - No Year Selection dependence)
+    content.append(html.Div(style=MODERN_STYLES["section_container"], children=[
+        get_land_use_layout(basin)
     ]))
 
-    # 2. Results Container (Inputs -> Results)
+    # 2. Climate & Results with Year Selection
     content.append(html.Div(style=MODERN_STYLES["section_container"], children=[
 
-        # Global Settings
-        html.Div(style={"backgroundColor": "white", "padding": "20px", "borderRadius": "4px", "marginBottom": "40px", "border": "1px solid #ddd"}, children=[
-            html.H4("Analysis Settings", style={"marginTop": "0", "color": "#004ea2"}),
+        # Global Settings for Climate/Results
+        html.Div(style={"backgroundColor": "#f8fafc", "padding": "25px", "borderRadius": "8px", "marginBottom": "40px", "borderLeft": "5px solid #004ea2"}, children=[
+            html.H4("Analysis Settings (For Climate & Results)", style={"marginTop": "0", "color": "#004ea2", "marginBottom": "15px"}),
             html.Div([
                 html.Div([
-                    html.Label("Start Year", style={"fontWeight": "bold"}),
-                    dcc.Dropdown(id="global-start-year-dropdown", options=opts, value=default_start, clearable=False)
-                ], style={"width": "200px", "display": "inline-block", "marginRight": "20px"}),
+                    html.Label("Start Year", style={"fontWeight": "bold", "color": "#2c3e50"}),
+                    dcc.Dropdown(id="global-start-year-dropdown", options=opts, value=default_start, clearable=False, style={"backgroundColor": "white"})
+                ], style={"width": "200px", "display": "inline-block", "marginRight": "30px"}),
                 html.Div([
-                    html.Label("End Year", style={"fontWeight": "bold"}),
-                    dcc.Dropdown(id="global-end-year-dropdown", options=opts, value=default_end, clearable=False)
+                    html.Label("End Year", style={"fontWeight": "bold", "color": "#2c3e50"}),
+                    dcc.Dropdown(id="global-end-year-dropdown", options=opts, value=default_end, clearable=False, style={"backgroundColor": "white"})
                 ], style={"width": "200px", "display": "inline-block"})
             ])
         ]),
 
-        # Sections
-        get_wa_inputs_layout(basin),
+        # Sections that depend on Year Selection
+        get_climate_inputs_layout(basin),
         get_results_layout(basin)
     ]))
 
@@ -1096,7 +1112,7 @@ def render_basin_content(basin):
 )
 def update_inner_report(tab, basin):
     if not basin or basin == "none": return ""
-    return dcc.Markdown(read_text_section(basin, tab))
+    return dcc.Markdown(read_text_section(basin, tab), style=MODERN_STYLES["text_content"])
 
 # --- DATA PROCESSING LOGIC & WRAPPERS ---
 
@@ -1142,16 +1158,16 @@ def update_basin_overview(basin, start_year, end_year):
         metric_cards = []
         for m in key_metrics:
             metric_cards.append(html.Div([
-                html.H4(m['title'], style={"fontSize": "14px", "color": "#666", "marginBottom": "5px"}),
+                html.H4(m['title'], style={"fontSize": "14px", "color": "#64748b", "marginBottom": "5px"}),
                 html.Div(f"{m['value']:.0f} {m['unit']}", style={"fontSize": "24px", "fontWeight": "bold", "color": m['color']})
-            ], style={"display": "inline-block", "width": "23%", "margin": "1%", "padding": "15px", "backgroundColor": "white", "borderRadius": "8px", "boxShadow": "0 1px 3px rgba(0,0,0,0.1)"}))
+            ], style={"display": "inline-block", "width": "23%", "margin": "1%", "padding": "20px", "backgroundColor": "white", "borderRadius": "8px", "boxShadow": "0 2px 4px rgba(0,0,0,0.05)"}))
 
         return html.Div([
             html.Div(metric_cards, style={"marginBottom": "20px"}),
             html.Div([
-                html.H5("Executive Summary", style={"color": "#333", "fontWeight": "bold"}),
-                html.Ul([html.Li(item) for item in summary_items])
-            ], style={"padding": "15px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "borderLeft": "4px solid #004ea2"})
+                html.H5("Executive Summary", style={"color": "#004ea2", "fontWeight": "bold", "marginBottom": "10px"}),
+                html.Ul([html.Li(item, style={"marginBottom": "8px"}) for item in summary_items], style={"paddingLeft": "20px"})
+            ], style={"padding": "20px", "backgroundColor": "#eff6ff", "borderRadius": "8px", "borderLeft": "4px solid #004ea2", "color": "#2c3e50"})
         ])
     except Exception as e:
         return html.Div(f"Error: {e}")
@@ -1194,13 +1210,14 @@ def _hydro_figs(basin: str, start_year: int | None, end_year: int | None, vtype:
         months = [pd.to_datetime(m, format="%m").strftime("%b") for m in monthly["Month"].values]
         y_vals = np.asarray(monthly.values).flatten()
         fig_bar = px.bar(x=months, y=y_vals, title=f"Mean Monthly {vtype}")
-        fig_bar.update_layout(plot_bgcolor='white')
+        fig_bar.update_traces(marker_color='#004ea2') # IWMI Blue
+        fig_bar.update_layout(plot_bgcolor='white', font=dict(family="Segoe UI"))
         explanation = _generate_explanation(vtype, basin, ys, ye, y_vals, months)
     except:
         fig_bar = _empty_fig("Data Error")
         explanation = "Error"
         
-    return fig_map, fig_bar, dcc.Markdown(explanation)
+    return fig_map, fig_bar, dcc.Markdown(explanation, style=MODERN_STYLES["text_content"])
 
 def update_p_et_outputs(basin, start_year, end_year):
     if not basin or basin == "none" or not start_year or not end_year:
@@ -1225,14 +1242,15 @@ def update_p_et_outputs(basin, start_year, end_year):
         months = [pd.to_datetime(m, format="%m").strftime("%b") for m in monthly["month"].values]
         y_vals = monthly.values.flatten()
         fig_bar = px.bar(x=months, y=y_vals, title="Mean Monthly P-ET")
-        fig_bar.update_layout(plot_bgcolor='white')
+        fig_bar.update_traces(marker_color='#004ea2')
+        fig_bar.update_layout(plot_bgcolor='white', font=dict(family="Segoe UI"))
         explanation = _generate_explanation("P-ET", basin, ys, ye, y_vals, months)
     except:
         fig_bar = _empty_fig()
         explanation = ""
-    return fig_map, fig_bar, dcc.Markdown(explanation)
+    return fig_map, fig_bar, dcc.Markdown(explanation, style=MODERN_STYLES["text_content"])
 
-def update_lu_map_and_coupling(basin, start_year, end_year):
+def update_lu_map_and_coupling(basin):
     if not basin or basin == "none": return _empty_fig(), _empty_fig()
 
     da_lu, _, _ = load_and_process_data(basin, "LU", year_start=2020, year_end=2020)
@@ -1254,7 +1272,8 @@ def update_lu_map_and_coupling(basin, start_year, end_year):
         stats.append({"Class": name, "Pct": (c/total)*100})
     df_stats = pd.DataFrame(stats).sort_values("Pct", ascending=False).head(10)
     fig_bar = px.bar(df_stats, x="Pct", y="Class", orientation='h', title="Top Land Use Classes")
-    fig_bar.update_layout(plot_bgcolor='white')
+    fig_bar.update_traces(marker_color='#004ea2')
+    fig_bar.update_layout(plot_bgcolor='white', font=dict(family="Segoe UI"))
 
     return fig_map, fig_bar
 
@@ -1269,7 +1288,8 @@ def update_wa_module(basin, start_year, end_year):
 
     # Sectoral Bar
     sector_df = df[df['CLASS'] == 'OUTFLOW'] # Simplified
-    fig_bar = px.bar(sector_df, x='VARIABLE', y='VALUE', color='SUBCLASS')
+    fig_bar = px.bar(sector_df, x='VARIABLE', y='VALUE', color='SUBCLASS', barmode='group')
+    fig_bar.update_layout(plot_bgcolor='white', font=dict(family="Segoe UI"))
 
     return fig_sankey, fig_bar, html.Div("Indicators Placeholder")
 
@@ -1280,7 +1300,10 @@ def update_validation_plots(basin):
 
     def sc(df, t):
         if df.empty: return _empty_fig(f"No Data {t}")
-        return px.scatter(df, x='Observed', y='Satellite', title=t)
+        fig = px.scatter(df, x='Observed', y='Satellite', title=t)
+        fig.update_traces(marker_color='#004ea2')
+        fig.update_layout(plot_bgcolor='white', font=dict(family="Segoe UI"))
+        return fig
 
     return sc(p_df, "P Validation"), sc(et_df, "ET Validation")
 
@@ -1319,10 +1342,11 @@ def update_pet_wrapper(basin, start, end):
 
 @app.callback(
     [Output("lu-map-graph", "figure"), Output("lu-bar-graph", "figure")],
-    [Input("basin-dropdown", "value"), Input("global-start-year-dropdown", "value"), Input("global-end-year-dropdown", "value")]
+    [Input("basin-dropdown", "value")]
 )
-def update_lu_wrapper(basin, start, end):
-    return update_lu_map_and_coupling(basin, start, end)
+def update_lu_wrapper(basin):
+    # Removed year inputs as requested
+    return update_lu_map_and_coupling(basin)
 
 @app.callback(
     [Output("wa-resource-base-sankey", "figure"), Output("wa-sectoral-bar", "figure"), Output("wa-indicators-container", "children")],
