@@ -831,11 +831,8 @@ def get_home_content():
         ]),
     ])
 
-def get_land_use_layout(basin, study_area_text):
-    """Generates the Land Use section (Static / Last Year)."""
-    # Read Land Use Text
-    lu_text = read_basin_text(basin, "lu.txt")
-
+def get_land_use_table(basin):
+    """Generates the Land Use Table component."""
     # Table logic
     table_component = html.Div("No table data available.")
     if basin == "Amman Zarqa":
@@ -870,26 +867,19 @@ def get_land_use_layout(basin, study_area_text):
                  {'if': {'row_index': 'odd'}, 'backgroundColor': '#f8fafc'}
             ]
         )
+    return table_component
+
+def get_land_use_layout(basin):
+    """Generates the Land Use section (Texts and Bar Graph)."""
+    # Read Land Use Text
+    lu_text = read_basin_text(basin, "lu.txt")
 
     return html.Div([
-        html.H3("Land Use (Latest Year)", style={"color": THEME_COLOR, "marginTop": "20px", "borderBottom": f"2px solid {THEME_COLOR}", "paddingBottom": "10px"}),
-
-        # 1. Land Use Map
-        html.Div(dcc.Loading(dcc.Graph(id="lu-map-graph"), type="circle"), style={"width": "100%", "marginBottom": "20px", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-
-        # 2. Land Use Table (Smaller)
-        html.Div(table_component, style={"marginTop": "20px", "marginBottom": "30px", "overflowX": "auto", "width": "80%", "margin": "0 auto"}),
-
-        # 3. Site Description (Study Area)
-        html.Div([
-            html.H4(f"{basin} Study Area", style={"marginTop": "30px", "color": THEME_COLOR}),
-            dcc.Markdown(study_area_text, className="markdown-content", style={"textAlign": "justify"})
-        ], style={"padding": "20px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "borderLeft": f"4px solid {THEME_COLOR}", "marginBottom": "30px"}),
-
-        # 4. Land Use Paragraphs
+        # 1. Land Use Paragraphs
+        html.H4("Land Use Details", style={"marginTop": "20px", "color": THEME_COLOR}),
         dcc.Markdown(lu_text, className="markdown-content", style={"textAlign": "justify"}),
 
-        # Bar graph (maybe keep it at bottom or alongside map? Original was side-by-side with map. Let's keep it here for completeness if needed, or remove if not requested. I'll put it at the bottom.)
+        # 2. Bar graph
         html.Div(dcc.Loading(dcc.Graph(id="lu-bar-graph"), type="circle"), style={"width": "100%", "marginTop": "20px", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
 
     ], id="section-land-use")
@@ -1005,6 +995,7 @@ def render_tab_content(active_tab):
                     html.Div(children=[
                         html.H3("Select Basin", style={"color": THEME_COLOR, "marginBottom": "20px", "fontWeight": "600", "fontSize": "1.8rem"}),
                         html.Div([
+                            # Left Column
                             html.Div([
                                     html.Label("Choose from list:", style={"fontWeight": "bold", "marginBottom": "10px", "display": "block", "color": THEME_COLOR}),
                                     dcc.Dropdown(
@@ -1016,11 +1007,26 @@ def render_tab_content(active_tab):
                                     persistence=True,
                                     persistence_type="session"
                                 ),
+                                # Year Selection Panel (Moved here)
+                                html.Div(id="year-selection-panel", style={"marginTop": "30px", "display": "none"}, children=[
+                                    html.H5("Select Year Range", style={"color": THEME_COLOR, "marginBottom": "15px"}),
+                                    html.Label("Start Year", style={"fontWeight": "bold", "color": "#2c3e50"}),
+                                    dcc.Dropdown(id="global-start-year-dropdown", clearable=False, style={"marginBottom": "15px", "borderRadius": "4px"}),
+                                    html.Label("End Year", style={"fontWeight": "bold", "color": "#2c3e50"}),
+                                    dcc.Dropdown(id="global-end-year-dropdown", clearable=False, style={"borderRadius": "4px"})
+                                ]),
+                                # Study Area Text (Restored to Left Column)
+                                html.Div(id="study-area-container", style={"marginTop": "30px", "padding": "20px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "borderLeft": f"4px solid {THEME_COLOR}"}, children=[
+                                    html.H4("Study Area", style={"color": THEME_COLOR, "fontSize": "1.2rem"}),
+                                    dcc.Markdown(id="study-area-text", className="markdown-content", style={"textAlign": "justify", "fontSize": "0.9rem"})
+                                ])
                             ], style={"width": "30%", "display": "inline-block", "verticalAlign": "top"}),
 
+                            # Right Column (Map + Table)
                             html.Div([
-                                    dcc.Graph(id="basin-map", style={"height": "400px", "borderRadius": "8px", "overflow": "hidden"})
-                            ], style={"width": "68%", "display": "inline-block", "marginLeft": "2%", "verticalAlign": "top", "boxShadow": "0 4px 12px rgba(0,0,0,0.1)", "borderRadius": "8px"})
+                                    dcc.Loading(dcc.Graph(id="basin-map", style={"height": "400px", "borderRadius": "8px", "overflow": "hidden"}), type="circle"),
+                                    html.Div(id="basin-lu-table-container", style={"marginTop": "20px", "overflowX": "auto"})
+                            ], style={"width": "68%", "display": "inline-block", "marginLeft": "2%", "verticalAlign": "top", "boxShadow": "0 4px 12px rgba(0,0,0,0.1)", "borderRadius": "8px", "padding": "10px", "backgroundColor": "white"})
                         ])
                     ])
                 ]
@@ -1035,8 +1041,21 @@ def render_tab_content(active_tab):
     [Input("basin-dropdown", "value")]
 )
 def update_map(basin):
-    if basin == "none": basin = None
-    return make_basin_selector_map(selected_basin=basin)
+    if not basin or basin == "none":
+        return make_basin_selector_map(selected_basin=None)
+
+    # If basin is selected, show Land Use Map
+    fig, _ = update_lu_map_and_coupling(basin)
+    return fig
+
+@app.callback(
+    Output("basin-lu-table-container", "children"),
+    [Input("basin-dropdown", "value")]
+)
+def update_lu_table_callback(basin):
+    if not basin or basin == "none":
+        return html.Div()
+    return get_land_use_table(basin)
 
 @app.callback(
     Output("basin-dropdown", "value"),
@@ -1044,11 +1063,14 @@ def update_map(basin):
     [State("basin-dropdown", "value")]
 )
 def map_click(clickData, current):
+    # If a basin is already selected (current is not None), map is Cartesian.
+    # We should ignore clicks unless we want to implement logic to deselect or something.
+    if current and current != "none":
+        return current
+
     if clickData and "points" in clickData:
         return clickData["points"][0].get("location", current)
     return current
-
-# Removed the independent update_study_area_text callback as it is now integrated into the main render
 
 def get_year_options(basin):
     p_fp = find_nc_file(basin, "P")
@@ -1081,6 +1103,21 @@ def get_year_options(basin):
     opts = [{"label": str(y), "value": y} for y in years]
     return opts, start, end
 
+@app.callback(
+    [Output("global-start-year-dropdown", "options"),
+     Output("global-start-year-dropdown", "value"),
+     Output("global-end-year-dropdown", "options"),
+     Output("global-end-year-dropdown", "value"),
+     Output("year-selection-panel", "style")],
+    [Input("basin-dropdown", "value")]
+)
+def update_year_controls(basin):
+    if not basin or basin == "none":
+        return [], None, [], None, {"display": "none"}
+
+    opts, start, end = get_year_options(basin)
+    return opts, start, opts, end, {"marginTop": "30px", "display": "block"}
+
 
 @app.callback(
     Output("dynamic-content", "children"),
@@ -1093,41 +1130,16 @@ def render_basin_content(basin):
             children=[html.H3("Please select a basin above to view the analysis.", style={"color": THEME_COLOR})]
         )
 
-    # Get years
-    opts, start, end = get_year_options(basin)
-    default_start = start
-    default_end = end
-
-    # Read Site Description (Study Area)
-    study_area_text = read_basin_text(basin, "study area.txt")
-    if "No text available" in study_area_text:
-        study_area_text = read_basin_text(basin, "studyarea.txt")
-
     content = []
 
-    # 0. Year Selection (Moved to top)
-    content.append(html.Div(style={"backgroundColor": "#f8fafc", "padding": "25px", "borderRadius": "8px", "marginTop": "20px", "marginBottom": "30px", "borderLeft": f"5px solid {THEME_COLOR}"}, children=[
-        html.H4("Select Year Range", style={"marginTop": "0", "color": THEME_COLOR, "marginBottom": "15px"}),
-        html.Div([
-            html.Div([
-                html.Label("Start Year", style={"fontWeight": "bold", "color": "#2c3e50"}),
-                dcc.Dropdown(id="global-start-year-dropdown", options=opts, value=default_start, clearable=False, style={"backgroundColor": "white"})
-            ], style={"width": "200px", "display": "inline-block", "marginRight": "30px"}),
-            html.Div([
-                html.Label("End Year", style={"fontWeight": "bold", "color": "#2c3e50"}),
-                dcc.Dropdown(id="global-end-year-dropdown", options=opts, value=default_end, clearable=False, style={"backgroundColor": "white"})
-            ], style={"width": "200px", "display": "inline-block"})
-        ])
+    # 1. Land Use Section (Text and Bar Graph)
+    # Map and Table are now in the top section
+    content.append(html.Div(className="graph-card", style={"padding": "30px", "backgroundColor": "white", "borderRadius": "10px", "boxShadow": "0 4px 6px rgba(0,0,0,0.1)", "marginTop": "30px"}, children=[
+        get_land_use_layout(basin)
     ]))
 
-    # 1. Land Use Section (Fixed/Latest Year)
+    # 2. Climate & Results
     content.append(html.Div(className="graph-card", style={"padding": "30px", "backgroundColor": "white", "borderRadius": "10px", "boxShadow": "0 4px 6px rgba(0,0,0,0.1)", "marginTop": "30px"}, children=[
-        get_land_use_layout(basin, study_area_text)
-    ]))
-
-    # 2. Climate & Results with Year Selection
-    content.append(html.Div(className="graph-card", style={"padding": "30px", "backgroundColor": "white", "borderRadius": "10px", "boxShadow": "0 4px 6px rgba(0,0,0,0.1)", "marginTop": "30px"}, children=[
-
         # Sections that depend on Year Selection
         get_climate_inputs_layout(basin),
         get_results_layout(basin)
@@ -1295,12 +1307,17 @@ def update_lu_map_and_coupling(basin):
     tickvals = []
     ticktext = []
     for v in unique_vals:
+        if not np.isfinite(v):
+            continue
         if v in class_info:
             tickvals.append(v)
             ticktext.append(class_info[v]["name"])
         else:
-            tickvals.append(v)
-            ticktext.append(str(int(v)))
+            try:
+                tickvals.append(v)
+                ticktext.append(str(int(v)))
+            except (ValueError, TypeError):
+                continue
 
     # Max ID typically around 80. Use 81 for range.
     max_val = 81
@@ -1338,11 +1355,17 @@ def update_lu_map_and_coupling(basin):
     fig_map = add_shapefile_to_fig(fig_map, basin)
 
     # Bar stats
-    unique, counts = np.unique(z_vals, return_counts=True)
+    mask = ~np.isnan(z_vals)
+    unique, counts = np.unique(z_vals[mask], return_counts=True)
     total = counts.sum()
     stats = []
     for u, c in zip(unique, counts):
-        name = class_info.get(int(u), {}).get("name", str(u))
+        if not np.isfinite(u):
+            continue
+        try:
+            name = class_info.get(int(u), {}).get("name", str(u))
+        except (ValueError, TypeError):
+            continue
         stats.append({"Class": name, "Pct": (c/total)*100})
     df_stats = pd.DataFrame(stats).sort_values("Pct", ascending=False).head(10)
     fig_bar = px.bar(df_stats, x="Pct", y="Class", orientation='h', title="Top Land Use Classes")
@@ -1415,12 +1438,13 @@ def update_pet_wrapper(basin, start, end):
     return update_p_et_outputs(basin, start, end)
 
 @app.callback(
-    [Output("lu-map-graph", "figure"), Output("lu-bar-graph", "figure")],
+    Output("lu-bar-graph", "figure"),
     [Input("basin-dropdown", "value")]
 )
-def update_lu_wrapper(basin):
-    # Removed year inputs as requested
-    return update_lu_map_and_coupling(basin)
+def update_lu_bar_wrapper(basin):
+    # Only return the bar graph
+    _, fig_bar = update_lu_map_and_coupling(basin)
+    return fig_bar
 
 @app.callback(
     [Output("wa-resource-base-sankey", "figure"), Output("wa-sectoral-bar", "figure"), Output("wa-indicators-container", "children")],
@@ -1438,3 +1462,15 @@ def update_val_wrapper(basin):
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 7860)), debug=False)
+@app.callback(
+    Output("study-area-text", "children"),
+    [Input("basin-dropdown", "value")]
+)
+def update_study_area_text(basin):
+    if not basin or basin == "none":
+        return "Select a basin to view details."
+
+    text = read_basin_text(basin, "study area.txt")
+    if "No text available" in text:
+        text = read_basin_text(basin, "studyarea.txt")
+    return text
