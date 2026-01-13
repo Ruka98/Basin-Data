@@ -8,6 +8,7 @@ import textwrap
 import dash
 from dash import dcc, html, dash_table
 from dash.dependencies import Input, Output, State
+import dash_bootstrap_components as dbc
 
 import plotly.express as px
 import plotly.graph_objects as go
@@ -685,7 +686,7 @@ class_info = {
 # DASH LAYOUT
 # ===========
 
-app = dash.Dash(__name__, suppress_callback_exceptions=True)
+app = dash.Dash(__name__, suppress_callback_exceptions=True, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 # IWMI Colors (Updated to Blue Theme)
 MODERN_STYLES = {
@@ -829,54 +830,58 @@ app.layout = html.Div(
             ]
         ),
 
-        # 2. Introduction (Common)
-        html.Div(style=MODERN_STYLES["section_container"], children=[
-            html.H2("1. Introduction", style=MODERN_STYLES["section_title"]),
-            dcc.Markdown(INTRO_TEXT, style=MODERN_STYLES["text_content"])
-        ]),
-
-        # 3. Objectives and Deliverables (Renamed from Objectives)
-        html.Div(style={**MODERN_STYLES["section_container"], "backgroundColor": "#f8f9fa"}, children=[
-            html.H2("2. Objectives and Deliverables", style=MODERN_STYLES["section_title"]),
-            dcc.Markdown(OBJECTIVES_TEXT, style=MODERN_STYLES["text_content"])
-        ]),
-
-        # 4. Customized WA+ Analytics (Moved up)
-        html.Div(style=MODERN_STYLES["section_container"], children=[
-            html.H2("3. Customized WA+ Analytics for Jordan", style=MODERN_STYLES["section_title"]),
-            dcc.Markdown(WA_FRAMEWORK_TEXT, style=MODERN_STYLES["text_content"])
-        ]),
-
-        # 5. Basin Selection
-        html.Div(
-            style={"backgroundColor": "white", "padding": "40px", "marginTop": "20px", "boxShadow": "0 -2px 10px rgba(0,0,0,0.05)"},
-            children=[
-                html.Div(style={"maxWidth": "1200px", "margin": "0 auto"}, children=[
-                    html.H3("4. Select Basin", style={"color": "#004ea2", "marginBottom": "20px", "fontWeight": "600", "fontSize": "1.8rem"}),
-                    html.Div([
-                        html.Div([
-                             html.Label("Choose from list:", style={"fontWeight": "bold", "marginBottom": "10px", "display": "block", "color": "#004ea2"}),
-                             dcc.Dropdown(
-                                id="basin-dropdown",
-                                options=basin_options,
-                                value=None,
-                                placeholder="Select a basin...",
-                                style=MODERN_STYLES["dropdown"]
-                            ),
-                            # Study Area Text Area
-                            html.Div(id="study-area-container", style={"marginTop": "20px", "padding": "20px", "backgroundColor": "#f0f4f8", "borderRadius": "8px", "fontSize": "1rem", "lineHeight": "1.8", "color": "#2c3e50", "textAlign": "justify", "borderLeft": "4px solid #004ea2"})
-                        ], style={"width": "30%", "display": "inline-block", "verticalAlign": "top"}),
-
-                        html.Div([
-                             dcc.Graph(id="basin-map", style={"height": "400px", "borderRadius": "8px", "overflow": "hidden"})
-                        ], style={"width": "68%", "display": "inline-block", "marginLeft": "2%", "verticalAlign": "top", "boxShadow": "0 4px 12px rgba(0,0,0,0.1)", "borderRadius": "8px"})
+        # 2. Tabs
+        dbc.Tabs(
+            [
+                dbc.Tab(label="Introduction", children=[
+                    html.Div(style=MODERN_STYLES["section_container"], children=[
+                        html.H2("1. Introduction", style=MODERN_STYLES["section_title"]),
+                        dcc.Markdown(INTRO_TEXT, style=MODERN_STYLES["text_content"])
                     ])
-                ])
-            ]
-        ),
+                ]),
+                dbc.Tab(label="Objectives", children=[
+                    html.Div(style=MODERN_STYLES["section_container"], children=[
+                        html.H2("2. Objectives and Deliverables", style=MODERN_STYLES["section_title"]),
+                        dcc.Markdown(OBJECTIVES_TEXT, style=MODERN_STYLES["text_content"])
+                    ])
+                ]),
+                dbc.Tab(label="Frame Work", children=[
+                     html.Div(style=MODERN_STYLES["section_container"], children=[
+                        html.H2("3. Customized WA+ Analytics for Jordan", style=MODERN_STYLES["section_title"]),
+                        dcc.Markdown(WA_FRAMEWORK_TEXT, style=MODERN_STYLES["text_content"])
+                    ])
+                ]),
+                dbc.Tab(label="Explore", children=[
+                    html.Div(
+                        style={"backgroundColor": "white", "padding": "40px", "marginTop": "20px", "boxShadow": "0 -2px 10px rgba(0,0,0,0.05)"},
+                        children=[
+                            html.Div(style={"maxWidth": "1200px", "margin": "0 auto"}, children=[
+                                html.H3("4. Select Basin", style={"color": "#004ea2", "marginBottom": "20px", "fontWeight": "600", "fontSize": "1.8rem"}),
+                                html.Div([
+                                    html.Div([
+                                         html.Label("Choose from list:", style={"fontWeight": "bold", "marginBottom": "10px", "display": "block", "color": "#004ea2"}),
+                                         dcc.Dropdown(
+                                            id="basin-dropdown",
+                                            options=basin_options,
+                                            value=None,
+                                            placeholder="Select a basin...",
+                                            style=MODERN_STYLES["dropdown"]
+                                        ),
+                                        # Study Area Text Area
+                                        html.Div(id="study-area-container", style={"marginTop": "20px", "padding": "20px", "backgroundColor": "#f0f4f8", "borderRadius": "8px", "fontSize": "1rem", "lineHeight": "1.8", "color": "#2c3e50", "textAlign": "justify", "borderLeft": "4px solid #004ea2"})
+                                    ], style={"width": "30%", "display": "inline-block", "verticalAlign": "top"}),
 
-        # 6. Dynamic Content Area
-        html.Div(id="dynamic-content")
+                                    html.Div([
+                                         dcc.Graph(id="basin-map", style={"height": "400px", "borderRadius": "8px", "overflow": "hidden"})
+                                    ], style={"width": "68%", "display": "inline-block", "marginLeft": "2%", "verticalAlign": "top", "boxShadow": "0 4px 12px rgba(0,0,0,0.1)", "borderRadius": "8px"})
+                                ])
+                            ])
+                        ]
+                    ),
+                    html.Div(id="dynamic-content")
+                ]),
+            ]
+        )
     ]
 )
 

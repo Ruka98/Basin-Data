@@ -7,3 +7,7 @@ geopandas
 fiona
 shapely>=2.0
 pyproj
+dash-bootstrap-components
+pytest
+h5netcdf
+netcdf4
