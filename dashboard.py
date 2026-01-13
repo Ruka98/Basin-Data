@@ -683,72 +683,10 @@ class_info = {
 }
 
 # ===========
-# DASH LAYOUT
+# DASH APP
 # ===========
 
 app = dash.Dash(__name__, suppress_callback_exceptions=True, external_stylesheets=[dbc.themes.BOOTSTRAP])
-
-# IWMI Colors (Updated to Blue Theme)
-MODERN_STYLES = {
-    "container": {
-        "maxWidth": "1400px",
-        "margin": "0 auto",
-        "padding": "0px",
-        "fontFamily": "'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-        "backgroundColor": "#f4f6f9",
-        "minHeight": "100vh",
-        "color": "#333333"
-    },
-    "header_bar": {
-        "backgroundColor": "white",
-        "borderBottom": "4px solid #004ea2", # IWMI Blue
-        "padding": "20px 40px",
-        "display": "flex",
-        "justifyContent": "space-between",
-        "alignItems": "center",
-        "boxShadow": "0 2px 10px rgba(0,0,0,0.05)"
-    },
-    "header_title": {
-        "color": "#004ea2", # IWMI Blue
-        "fontSize": "2.2rem",
-        "fontWeight": "bold",
-        "margin": "0"
-    },
-    "section_container": {
-        "padding": "40px 40px",
-        "backgroundColor": "white",
-        "marginBottom": "20px",
-        "borderRadius": "8px",
-        "boxShadow": "0 2px 4px rgba(0,0,0,0.02)"
-    },
-    "section_title": {
-        "color": "#004ea2", # IWMI Blue
-        "fontSize": "1.8rem",
-        "fontWeight": "600",
-        "marginBottom": "25px",
-        "borderBottom": "1px solid #eee",
-        "paddingBottom": "10px"
-    },
-    "text_content": {
-        "fontSize": "1.1rem",
-        "lineHeight": "1.8",
-        "color": "#2c3e50", # Darker interactive color
-        "maxWidth": "1000px",
-        "textAlign": "justify"
-    },
-    "card": {
-        "backgroundColor": "white",
-        "borderRadius": "8px",
-        "padding": "25px",
-        "marginBottom": "25px",
-        "boxShadow": "0 4px 6px rgba(0,0,0,0.05)",
-        "border": "1px solid #edf2f7"
-    },
-    "dropdown": {
-        "borderRadius": "4px",
-        "border": "1px solid #cbd5e1"
-    }
-}
 
 basin_folders = [d for d in os.listdir(BASIN_DIR) if os.path.isdir(os.path.join(BASIN_DIR, d))] if os.path.isdir(BASIN_DIR) else []
 basin_options = [{"label": "Select a Basin...", "value": "none"}] + [{"label": b, "value": b} for b in sorted(basin_folders)]
@@ -811,49 +749,249 @@ LAND_USE_DATA = [
     {"Class": "Total", "Subclass": "", "Area_Sub_km2": 4829.89, "Area_Class_km2": 4829.89, "Area_Pct": 100, "P": None, "ET": None, "P_ET": None},
 ]
 
-app.layout = html.Div(
-    style=MODERN_STYLES["container"],
-    children=[
-        # 1. Header with Logos
-        html.Div(
-            style=MODERN_STYLES["header_bar"],
-            children=[
-                html.Div([
-                    html.Img(src=app.get_asset_url('iwmi.png'), style={"height": "60px", "marginRight": "20px"}),
-                ]),
-                html.Div([
-                    html.H1("Rapid Water Accounting Dashboard - Jordan", style=MODERN_STYLES["header_title"]),
-                ]),
-                html.Div([
-                    html.Img(src=app.get_asset_url('cgiar.png'), style={"height": "60px"})
-                ])
-            ]
-        ),
 
-        # 2. Tabs
-        dbc.Tabs(
-            [
+# ==================
+# LAYOUT COMPONENTS
+# ==================
+
+def get_header():
+    return html.Nav(
+        className="navbar-custom",
+        children=[
+            html.Div(className="navbar-brand-group", children=[
+                html.Img(src=app.get_asset_url('iwmi.png'), className="nav-logo logo-white-filter"),
+                html.H1("Water Accounting Jordan", style={"color": "white", "margin": 0, "fontSize": "1.5rem", "fontWeight": "600"}),
+            ]),
+            html.Div(className="nav-links", children=[
+                dcc.Link("Home", href="/", className="nav-link"),
+                dcc.Link("Dashboard", href="/dashboard", className="nav-link"),
+                dbc.DropdownMenu(
+                    label="Resources",
+                    nav=True,
+                    in_navbar=True,
+                    children=[
+                        dbc.DropdownMenuItem("About Project", href="#"),
+                        dbc.DropdownMenuItem("Methodology", href="#"),
+                        dbc.DropdownMenuItem("Data Sources", href="#"),
+                    ],
+                    className="nav-link-dropdown",
+                    toggle_style={"color": "rgba(255, 255, 255, 0.9)", "fontWeight": "500", "background": "transparent", "border": "none"}
+                ),
+                dbc.Input(type="search", placeholder="Search...", className="me-2", style={"maxWidth": "200px", "borderRadius": "20px", "border": "none", "padding": "5px 15px", "fontSize": "0.9rem"}),
+                html.Img(src=app.get_asset_url('cgiar.png'), className="nav-logo logo-white-filter"),
+            ])
+        ]
+    )
+
+def get_footer():
+    return html.Footer(className="site-footer", children=[
+        html.Div(className="footer-content", children=[
+            html.Div(className="footer-col", children=[
+                html.H4("International Water Management Institute"),
+                html.P("Science for a water-secure world.", style={"color": "rgba(255,255,255,0.7)"})
+            ]),
+            html.Div(className="footer-col", children=[
+                html.H4("Quick Links"),
+                html.Ul(className="footer-links", children=[
+                    html.Li(dcc.Link("Dashboard", href="/dashboard")),
+                    html.Li(html.A("IWMI Website", href="https://www.iwmi.cgiar.org/", target="_blank")),
+                    html.Li(html.A("CGIAR", href="https://www.cgiar.org/", target="_blank")),
+                ])
+            ]),
+            html.Div(className="footer-col", children=[
+                html.H4("Contact"),
+                html.P("127 Sunil Mawatha, Pelawatte, Battaramulla, Sri Lanka", style={"color": "rgba(255,255,255,0.7)"}),
+                html.P("iwmi@cgiar.org", style={"color": "rgba(255,255,255,0.7)"})
+            ])
+        ]),
+        html.Div(className="footer-bottom", children=[
+            html.P("© 2024 International Water Management Institute (IWMI). All rights reserved.")
+        ])
+    ])
+
+def serve_landing_layout():
+    return html.Div([
+        get_header(),
+        # Hero Section
+        html.Div(className="hero-section", children=[
+            html.Div(className="hero-bg-overlay"),
+            html.Div(className="hero-content", children=[
+                html.H1("Rapid Water Accounting Dashboard - Jordan", className="hero-title"),
+                html.P("Empowering sustainable water management through advanced remote sensing data and hydrological modeling.", className="hero-subtitle"),
+                html.Div(className="hero-buttons", children=[
+                    dcc.Link("Explore Dashboard", href="/dashboard", className="btn-primary-lg"),
+                    html.A("Learn More", href="#features", className="btn-outline-lg")
+                ])
+            ])
+        ]),
+        # Features Section
+        html.Div(id="features", className="content-section", children=[
+            html.Div(className="section-container", children=[
+                html.Div(className="section-header", children=[
+                    html.H2("Key Features", className="section-title"),
+                    html.P("A comprehensive toolkit for water resource assessment in data-scarce regions.", className="section-desc")
+                ]),
+                html.Div(className="grid-3", children=[
+                    html.Div(className="feature-card", children=[
+                        html.Div("📊", className="feature-icon"),
+                        html.H3("Basin Analysis", className="feature-title"),
+                        html.P("Interactive maps and metrics for major basins in Jordan. Analyze inflows, outflows, and storage changes.", className="feature-text")
+                    ]),
+                    html.Div(className="feature-card", children=[
+                        html.Div("🌧️", className="feature-icon"),
+                        html.H3("Climate Data", className="feature-title"),
+                        html.P("Visualize long-term precipitation and evapotranspiration trends derived from high-resolution satellite data.", className="feature-text")
+                    ]),
+                    html.Div(className="feature-card", children=[
+                        html.Div("📑", className="feature-icon"),
+                        html.H3("WA+ Reporting", className="feature-title"),
+                        html.P("Standardized Water Accounting Plus (WA+) sheets and indicators to support evidence-based decision making.", className="feature-text")
+                    ])
+                ])
+            ])
+        ]),
+        get_footer()
+    ])
+
+
+def get_land_use_layout(basin):
+    """Generates the Land Use section (Static / Last Year)."""
+    # Read Land Use Text
+    lu_text = read_basin_text(basin, "lu.txt")
+
+    # Table logic
+    table_component = html.Div("No table data available.")
+    if basin == "Amman Zarqa":
+        df = pd.DataFrame(LAND_USE_DATA)
+        table_component = dash_table.DataTable(
+            data=df.to_dict('records'),
+            columns=[
+                {'name': 'Water Management Class', 'id': 'Class'},
+                {'name': 'Land and water use', 'id': 'Subclass'},
+                {'name': 'Area (km2)', 'id': 'Area_Sub_km2'},
+                {'name': 'Area (km2)', 'id': 'Area_Class_km2'},
+                {'name': 'Area (%)', 'id': 'Area_Pct'},
+                {'name': 'P (mm)', 'id': 'P'},
+                {'name': 'ET (mm)', 'id': 'ET'},
+                {'name': 'P-ET (mm)', 'id': 'P_ET'},
+            ],
+            style_table={'overflowX': 'auto'},
+            style_cell={
+                'textAlign': 'left',
+                'padding': '12px',
+                'fontFamily': 'Segoe UI, sans-serif',
+                'border': '1px solid #e2e8f0'
+            },
+            style_header={
+                'backgroundColor': '#eff6ff', # Light blue
+                'fontWeight': 'bold',
+                'color': '#004ea2',
+                'border': '1px solid #e2e8f0'
+            },
+            style_data_conditional=[
+                 {'if': {'row_index': 'odd'}, 'backgroundColor': '#f8fafc'}
+            ]
+        )
+
+    return html.Div([
+        html.H3("Land Use (Latest Year)", style={"color": "#004ea2", "marginTop": "20px", "borderBottom": "2px solid #004ea2", "paddingBottom": "10px"}),
+
+        dcc.Markdown(lu_text, className="markdown-content"),
+        html.Div(table_component, style={"marginTop": "20px", "marginBottom": "30px", "overflowX": "auto"}),
+        html.Div([
+            html.Div(dcc.Loading(dcc.Graph(id="lu-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
+            html.Div(dcc.Loading(dcc.Graph(id="lu-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
+        ]),
+    ], id="section-land-use")
+
+def get_climate_inputs_layout(basin):
+    """Generates Precipitation, ET, and Validation sections."""
+    return html.Div([
+        # Precipitation Subsection
+        html.H4("Precipitation", style={"color": "#004ea2", "marginTop": "40px", "fontSize": "1.5rem"}),
+        html.Div([
+            html.Div(dcc.Loading(dcc.Graph(id="p-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
+            html.Div(dcc.Loading(dcc.Graph(id="p-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
+        ]),
+        html.Div(id="p-explanation", className="graph-card", style={"marginTop":"10px"}),
+
+        # ET Subsection
+        html.H4("Evapotranspiration", style={"color": "#004ea2", "marginTop": "40px", "fontSize": "1.5rem"}),
+        html.Div([
+            html.Div(dcc.Loading(dcc.Graph(id="et-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
+            html.Div(dcc.Loading(dcc.Graph(id="et-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
+        ]),
+        html.Div(id="et-explanation", className="graph-card", style={"marginTop":"10px"}),
+
+        # Validation
+        html.H4("Data Validation", style={"color": "#004ea2", "marginTop": "40px", "fontSize": "1.5rem"}),
+         html.Div([
+             html.Div(dcc.Graph(id="val-p-scatter"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
+             html.Div(dcc.Graph(id="val-et-scatter"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"})
+        ])
+    ], id="section-climate-inputs")
+
+
+def get_results_layout(basin):
+    return html.Div([
+        html.H3("Results", style={"color": "#004ea2", "marginTop": "40px", "borderBottom": "2px solid #004ea2", "paddingBottom": "10px"}),
+
+        # Overview
+        html.H4("Basin Overview", style={"color": "#004ea2", "fontSize": "1.5rem"}),
+        html.Div(id="basin-overview-content"),
+
+        # Water Balance
+        html.H4("Water Balance (P - ET)", style={"color": "#004ea2", "marginTop": "30px", "fontSize": "1.5rem"}),
+        html.Div([
+            html.Div(dcc.Loading(dcc.Graph(id="p-et-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
+            html.Div(dcc.Loading(dcc.Graph(id="p-et-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
+        ]),
+        html.Div(id="p-et-explanation", className="graph-card", style={"marginTop":"10px"}),
+
+        # WA+ Sheets
+        html.H4("Water Accounting Reports", style={"color": "#004ea2", "marginTop": "30px", "fontSize": "1.5rem"}),
+        dcc.Loading(dcc.Graph(id="wa-resource-base-sankey"), type="circle"),
+        dcc.Loading(dcc.Graph(id="wa-sectoral-bar"), type="circle"),
+        html.Div(id="wa-indicators-container"), # Added container for indicators
+
+        # Reports Tabs
+        html.H4("Documentation", style={"color": "#004ea2", "marginTop": "40px", "fontSize": "1.5rem"}),
+        html.Div([
+            dcc.Tabs(id="inner-report-tabs", value="assumptions", vertical=True, children=[
+                dcc.Tab(label="Assumptions", value="assumptions", style={'color': '#004ea2'}, selected_style={'fontWeight': 'bold', 'color': '#004ea2', 'borderLeft': '3px solid #004ea2'}),
+                dcc.Tab(label="Limitations", value="limitations", style={'color': '#004ea2'}, selected_style={'fontWeight': 'bold', 'color': '#004ea2', 'borderLeft': '3px solid #004ea2'}),
+            ], style={"height": "300px", "width": "20%", "display": "inline-block", "verticalAlign": "top"}),
+            html.Div(id="report-content", style={"width": "75%", "display": "inline-block", "marginLeft": "2%", "padding": "25px", "backgroundColor": "white", "borderRadius": "8px", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "border": "1px solid #eee"})
+        ])
+    ], id="section-results")
+
+def serve_dashboard_layout():
+    return html.Div(className="dashboard-wrapper", children=[
+        get_header(),
+        html.Div(className="dashboard-container", children=[
+            dbc.Tabs(className="nav-tabs", children=[
                 dbc.Tab(label="Introduction", children=[
-                    html.Div(style=MODERN_STYLES["section_container"], children=[
-                        html.H2("1. Introduction", style=MODERN_STYLES["section_title"]),
-                        dcc.Markdown(INTRO_TEXT, style=MODERN_STYLES["text_content"])
+                    html.Div(className="graph-card", style={"marginTop": "20px"}, children=[
+                        html.H2("1. Introduction", style={"color": "#004ea2", "marginBottom": "20px"}),
+                        dcc.Markdown(INTRO_TEXT, className="markdown-content")
                     ])
                 ]),
                 dbc.Tab(label="Objectives", children=[
-                    html.Div(style=MODERN_STYLES["section_container"], children=[
-                        html.H2("2. Objectives and Deliverables", style=MODERN_STYLES["section_title"]),
-                        dcc.Markdown(OBJECTIVES_TEXT, style=MODERN_STYLES["text_content"])
+                    html.Div(className="graph-card", style={"marginTop": "20px"}, children=[
+                        html.H2("2. Objectives and Deliverables", style={"color": "#004ea2", "marginBottom": "20px"}),
+                        dcc.Markdown(OBJECTIVES_TEXT, className="markdown-content")
                     ])
                 ]),
-                dbc.Tab(label="Frame Work", children=[
-                     html.Div(style=MODERN_STYLES["section_container"], children=[
-                        html.H2("3. Customized WA+ Analytics for Jordan", style=MODERN_STYLES["section_title"]),
-                        dcc.Markdown(WA_FRAMEWORK_TEXT, style=MODERN_STYLES["text_content"])
+                dbc.Tab(label="Framework", children=[
+                     html.Div(className="graph-card", style={"marginTop": "20px"}, children=[
+                        html.H2("3. Customized WA+ Analytics for Jordan", style={"color": "#004ea2", "marginBottom": "20px"}),
+                        dcc.Markdown(WA_FRAMEWORK_TEXT, className="markdown-content")
                     ])
                 ]),
-                dbc.Tab(label="Explore", children=[
+                dbc.Tab(label="Explore Data", children=[
                     html.Div(
-                        style={"backgroundColor": "white", "padding": "40px", "marginTop": "20px", "boxShadow": "0 -2px 10px rgba(0,0,0,0.05)"},
+                        className="filters-panel",
+                        style={"marginTop": "20px"},
                         children=[
                             html.Div(style={"maxWidth": "1200px", "margin": "0 auto"}, children=[
                                 html.H3("4. Select Basin", style={"color": "#004ea2", "marginBottom": "20px", "fontWeight": "600", "fontSize": "1.8rem"}),
@@ -865,7 +1003,7 @@ app.layout = html.Div(
                                             options=basin_options,
                                             value=None,
                                             placeholder="Select a basin...",
-                                            style=MODERN_STYLES["dropdown"]
+                                            style={"borderRadius": "4px"}
                                         ),
                                         # Study Area Text Area
                                         html.Div(id="study-area-container", style={"marginTop": "20px", "padding": "20px", "backgroundColor": "#f0f4f8", "borderRadius": "8px", "fontSize": "1rem", "lineHeight": "1.8", "color": "#2c3e50", "textAlign": "justify", "borderLeft": "4px solid #004ea2"})
@@ -880,12 +1018,27 @@ app.layout = html.Div(
                     ),
                     html.Div(id="dynamic-content")
                 ]),
-            ]
-        )
-    ]
-)
+            ])
+        ])
+    ])
+
+# Define the app layout with routing
+app.layout = html.Div([
+    dcc.Location(id='url', refresh=False),
+    html.Div(id='page-content')
+])
+
 
 # === CALLBACKS ===
+
+# Routing Callback
+@app.callback(Output('page-content', 'children'),
+              [Input('url', 'pathname')])
+def display_page(pathname):
+    if pathname == '/dashboard':
+        return serve_dashboard_layout()
+    else:
+        return serve_landing_layout()
 
 @app.callback(
     Output("basin-map", "figure"),
@@ -950,118 +1103,6 @@ def get_year_options(basin):
     opts = [{"label": str(y), "value": y} for y in years]
     return opts, start, end
 
-# Layout generators
-
-def get_land_use_layout(basin):
-    """Generates the Land Use section (Static / Last Year)."""
-    # Read Land Use Text
-    lu_text = read_basin_text(basin, "lu.txt")
-
-    # Table logic
-    table_component = html.Div("No table data available.")
-    if basin == "Amman Zarqa":
-        df = pd.DataFrame(LAND_USE_DATA)
-        table_component = dash_table.DataTable(
-            data=df.to_dict('records'),
-            columns=[
-                {'name': 'Water Management Class', 'id': 'Class'},
-                {'name': 'Land and water use', 'id': 'Subclass'},
-                {'name': 'Area (km2)', 'id': 'Area_Sub_km2'},
-                {'name': 'Area (km2)', 'id': 'Area_Class_km2'},
-                {'name': 'Area (%)', 'id': 'Area_Pct'},
-                {'name': 'P (mm)', 'id': 'P'},
-                {'name': 'ET (mm)', 'id': 'ET'},
-                {'name': 'P-ET (mm)', 'id': 'P_ET'},
-            ],
-            style_table={'overflowX': 'auto'},
-            style_cell={
-                'textAlign': 'left',
-                'padding': '12px',
-                'fontFamily': 'Segoe UI, sans-serif',
-                'border': '1px solid #e2e8f0'
-            },
-            style_header={
-                'backgroundColor': '#eff6ff', # Light blue
-                'fontWeight': 'bold',
-                'color': '#004ea2',
-                'border': '1px solid #e2e8f0'
-            },
-            style_data_conditional=[
-                 {'if': {'row_index': 'odd'}, 'backgroundColor': '#f8fafc'}
-            ]
-        )
-
-    return html.Div([
-        html.H3("Land Use (Latest Year)", style={"color": "#004ea2", "marginTop": "20px", "borderBottom": "2px solid #004ea2", "paddingBottom": "10px"}),
-
-        dcc.Markdown(lu_text, style=MODERN_STYLES["text_content"]),
-        html.Div(table_component, style={"marginTop": "20px", "marginBottom": "30px", "overflowX": "auto"}),
-        html.Div([
-            html.Div(dcc.Loading(dcc.Graph(id="lu-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-            html.Div(dcc.Loading(dcc.Graph(id="lu-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-        ]),
-    ], id="section-land-use")
-
-def get_climate_inputs_layout(basin):
-    """Generates Precipitation, ET, and Validation sections."""
-    return html.Div([
-        # Precipitation Subsection
-        html.H4("Precipitation", style={"color": "#004ea2", "marginTop": "40px", "fontSize": "1.5rem"}),
-        html.Div([
-            html.Div(dcc.Loading(dcc.Graph(id="p-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-            html.Div(dcc.Loading(dcc.Graph(id="p-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-        ]),
-        html.Div(id="p-explanation", style=MODERN_STYLES["card"]),
-
-        # ET Subsection
-        html.H4("Evapotranspiration", style={"color": "#004ea2", "marginTop": "40px", "fontSize": "1.5rem"}),
-        html.Div([
-            html.Div(dcc.Loading(dcc.Graph(id="et-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-            html.Div(dcc.Loading(dcc.Graph(id="et-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-        ]),
-        html.Div(id="et-explanation", style=MODERN_STYLES["card"]),
-
-        # Validation
-        html.H4("Data Validation", style={"color": "#004ea2", "marginTop": "40px", "fontSize": "1.5rem"}),
-         html.Div([
-             html.Div(dcc.Graph(id="val-p-scatter"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-             html.Div(dcc.Graph(id="val-et-scatter"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"})
-        ])
-    ], id="section-climate-inputs")
-
-
-def get_results_layout(basin):
-    return html.Div([
-        html.H3("Results", style={"color": "#004ea2", "marginTop": "40px", "borderBottom": "2px solid #004ea2", "paddingBottom": "10px"}),
-
-        # Overview
-        html.H4("Basin Overview", style={"color": "#004ea2", "fontSize": "1.5rem"}),
-        html.Div(id="basin-overview-content"),
-
-        # Water Balance
-        html.H4("Water Balance (P - ET)", style={"color": "#004ea2", "marginTop": "30px", "fontSize": "1.5rem"}),
-        html.Div([
-            html.Div(dcc.Loading(dcc.Graph(id="p-et-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-            html.Div(dcc.Loading(dcc.Graph(id="p-et-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-        ]),
-        html.Div(id="p-et-explanation", style=MODERN_STYLES["card"]),
-
-        # WA+ Sheets
-        html.H4("Water Accounting Reports", style={"color": "#004ea2", "marginTop": "30px", "fontSize": "1.5rem"}),
-        dcc.Loading(dcc.Graph(id="wa-resource-base-sankey"), type="circle"),
-        dcc.Loading(dcc.Graph(id="wa-sectoral-bar"), type="circle"),
-        html.Div(id="wa-indicators-container"), # Added container for indicators
-
-        # Reports Tabs
-        html.H4("Documentation", style={"color": "#004ea2", "marginTop": "40px", "fontSize": "1.5rem"}),
-        html.Div([
-            dcc.Tabs(id="inner-report-tabs", value="assumptions", vertical=True, children=[
-                dcc.Tab(label="Assumptions", value="assumptions", style={'color': '#004ea2'}, selected_style={'fontWeight': 'bold', 'color': '#004ea2', 'borderLeft': '3px solid #004ea2'}),
-                dcc.Tab(label="Limitations", value="limitations", style={'color': '#004ea2'}, selected_style={'fontWeight': 'bold', 'color': '#004ea2', 'borderLeft': '3px solid #004ea2'}),
-            ], style={"height": "300px", "width": "20%", "display": "inline-block", "verticalAlign": "top"}),
-            html.Div(id="report-content", style={"width": "75%", "display": "inline-block", "marginLeft": "2%", "padding": "25px", "backgroundColor": "white", "borderRadius": "8px", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "border": "1px solid #eee"})
-        ])
-    ], id="section-results")
 
 @app.callback(
     Output("dynamic-content", "children"),
@@ -1082,12 +1123,12 @@ def render_basin_content(basin):
     content = []
 
     # 1. Land Use Section (Fixed/Latest Year - No Year Selection dependence)
-    content.append(html.Div(style=MODERN_STYLES["section_container"], children=[
+    content.append(html.Div(className="graph-card", children=[
         get_land_use_layout(basin)
     ]))
 
     # 2. Climate & Results with Year Selection
-    content.append(html.Div(style=MODERN_STYLES["section_container"], children=[
+    content.append(html.Div(className="graph-card", children=[
 
         # Global Settings for Climate/Results
         html.Div(style={"backgroundColor": "#f8fafc", "padding": "25px", "borderRadius": "8px", "marginBottom": "40px", "borderLeft": "5px solid #004ea2"}, children=[
@@ -1117,7 +1158,7 @@ def render_basin_content(basin):
 )
 def update_inner_report(tab, basin):
     if not basin or basin == "none": return ""
-    return dcc.Markdown(read_text_section(basin, tab), style=MODERN_STYLES["text_content"])
+    return dcc.Markdown(read_text_section(basin, tab), className="markdown-content")
 
 # --- DATA PROCESSING LOGIC & WRAPPERS ---
 
@@ -1222,7 +1263,7 @@ def _hydro_figs(basin: str, start_year: int | None, end_year: int | None, vtype:
         fig_bar = _empty_fig("Data Error")
         explanation = "Error"
         
-    return fig_map, fig_bar, dcc.Markdown(explanation, style=MODERN_STYLES["text_content"])
+    return fig_map, fig_bar, dcc.Markdown(explanation, className="markdown-content")
 
 def update_p_et_outputs(basin, start_year, end_year):
     if not basin or basin == "none" or not start_year or not end_year:
@@ -1253,7 +1294,7 @@ def update_p_et_outputs(basin, start_year, end_year):
     except:
         fig_bar = _empty_fig()
         explanation = ""
-    return fig_map, fig_bar, dcc.Markdown(explanation, style=MODERN_STYLES["text_content"])
+    return fig_map, fig_bar, dcc.Markdown(explanation, className="markdown-content")
 
 def update_lu_map_and_coupling(basin):
     if not basin or basin == "none": return _empty_fig(), _empty_fig()
