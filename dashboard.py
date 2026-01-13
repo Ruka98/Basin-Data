@@ -869,21 +869,6 @@ def get_land_use_table(basin):
         )
     return table_component
 
-def get_land_use_layout(basin):
-    """Generates the Land Use section (Texts and Bar Graph)."""
-    # Read Land Use Text
-    lu_text = read_basin_text(basin, "lu.txt")
-
-    return html.Div([
-        # 1. Land Use Paragraphs
-        html.H4("Land Use Details", style={"marginTop": "20px", "color": THEME_COLOR}),
-        dcc.Markdown(lu_text, className="markdown-content", style={"textAlign": "justify"}),
-
-        # 2. Bar graph
-        html.Div(dcc.Loading(dcc.Graph(id="lu-bar-graph"), type="circle"), style={"width": "100%", "marginTop": "20px", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-
-    ], id="section-land-use")
-
 def get_climate_inputs_layout(basin):
     """Generates Precipitation, ET, and Validation sections."""
     return html.Div([
@@ -987,53 +972,76 @@ def render_tab_content(active_tab):
         ])
 
     elif active_tab == "tab-analysis":
-        return html.Div(className="container", style={"maxWidth": "1200px"}, children=[
-            html.Div(
-                className="filters-panel",
-                style={"marginTop": "20px"},
-                children=[
-                    html.Div(children=[
-                        html.H3("Select Basin", style={"color": THEME_COLOR, "marginBottom": "20px", "fontWeight": "600", "fontSize": "1.8rem"}),
-                        html.Div([
-                            # Left Column
-                            html.Div([
-                                    html.Label("Choose from list:", style={"fontWeight": "bold", "marginBottom": "10px", "display": "block", "color": THEME_COLOR}),
-                                    dcc.Dropdown(
-                                    id="basin-dropdown",
-                                    options=basin_options,
-                                    value=None,
-                                    placeholder="Select a basin...",
-                                    style={"borderRadius": "4px"},
-                                    persistence=True,
-                                    persistence_type="session"
-                                ),
-                                # Year Selection Panel (Moved here)
-                                html.Div(id="year-selection-panel", style={"marginTop": "30px", "display": "none"}, children=[
-                                    html.H5("Select Year Range", style={"color": THEME_COLOR, "marginBottom": "15px"}),
-                                    html.Label("Start Year", style={"fontWeight": "bold", "color": "#2c3e50"}),
-                                    dcc.Dropdown(id="global-start-year-dropdown", clearable=False, style={"marginBottom": "15px", "borderRadius": "4px"}),
-                                    html.Label("End Year", style={"fontWeight": "bold", "color": "#2c3e50"}),
-                                    dcc.Dropdown(id="global-end-year-dropdown", clearable=False, style={"borderRadius": "4px"})
-                                ]),
-                                # Study Area Text (Restored to Left Column)
-                                html.Div(id="study-area-container", style={"marginTop": "30px", "padding": "20px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "borderLeft": f"4px solid {THEME_COLOR}"}, children=[
-                                    html.H4("Study Area", style={"color": THEME_COLOR, "fontSize": "1.2rem"}),
-                                    dcc.Markdown(id="study-area-text", className="markdown-content", style={"textAlign": "justify", "fontSize": "0.9rem"})
-                                ])
-                            ], style={"width": "30%", "display": "inline-block", "verticalAlign": "top"}),
-
-                            # Right Column (Maps + Table)
-                            html.Div([
-                                    dcc.Loading(dcc.Graph(id="osm-basin-map", style={"height": "400px", "borderRadius": "8px", "overflow": "hidden", "marginBottom": "20px"}), type="circle"),
-                                    dcc.Loading(dcc.Graph(id="land-use-map", style={"height": "500px", "borderRadius": "8px", "overflow": "hidden"}), type="circle"),
-                                    html.Div(id="basin-lu-table-container", style={"marginTop": "20px", "overflowX": "auto"})
-                            ], style={"width": "68%", "display": "inline-block", "marginLeft": "2%", "verticalAlign": "top", "boxShadow": "0 4px 12px rgba(0,0,0,0.1)", "borderRadius": "8px", "padding": "10px", "backgroundColor": "white"})
+        return dbc.Container([
+            # --- Row 1: Controls ---
+            dbc.Row([
+                dbc.Col([
+                    html.H3("Select Basin", style={"color": THEME_COLOR, "marginBottom": "10px", "fontWeight": "600", "fontSize": "1.8rem"}),
+                    dcc.Dropdown(
+                        id="basin-dropdown",
+                        options=basin_options,
+                        value=None,
+                        placeholder="Select a basin...",
+                        style={"borderRadius": "4px"},
+                        persistence=True,
+                        persistence_type="session"
+                    ),
+                    # Year Selection Panel
+                    html.Div(id="year-selection-panel", style={"marginTop": "20px", "display": "none"}, children=[
+                        dbc.Row([
+                            dbc.Col([
+                                html.Label("Start Year", style={"fontWeight": "bold", "color": "#2c3e50"}),
+                                dcc.Dropdown(id="global-start-year-dropdown", clearable=False, style={"borderRadius": "4px"}),
+                            ]),
+                            dbc.Col([
+                                html.Label("End Year", style={"fontWeight": "bold", "color": "#2c3e50"}),
+                                dcc.Dropdown(id="global-end-year-dropdown", clearable=False, style={"borderRadius": "4px"})
+                            ])
                         ])
+                    ]),
+                ], width=12)
+            ], style={"marginBottom": "30px"}),
+
+            # --- Row 2: Study Area (Text + OSM Map) ---
+            dbc.Row([
+                dbc.Col([
+                    html.Div(id="study-area-container", style={"padding": "20px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "borderLeft": f"4px solid {THEME_COLOR}", "height": "100%"}, children=[
+                        html.H4("Study Area", style={"color": THEME_COLOR, "fontSize": "1.2rem"}),
+                        dcc.Markdown(id="study-area-text", className="markdown-content", style={"textAlign": "justify", "fontSize": "0.9rem"})
                     ])
-                ]
-            ),
+                ], width=6, style={"display": "flex", "flexDirection": "column"}),
+                dbc.Col([
+                     dcc.Loading(dcc.Graph(id="osm-basin-map", style={"height": "400px", "borderRadius": "8px", "overflow": "hidden"}), type="circle"),
+                ], width=6, style={"display": "flex", "alignItems": "center"})
+            ], style={"marginBottom": "30px", "alignItems": "stretch"}),
+
+            # --- Row 3: Land Use Map + Bar Chart ---
+            dbc.Row([
+                dbc.Col([
+                    dcc.Loading(dcc.Graph(id="land-use-map", style={"height": "500px", "borderRadius": "8px", "overflow": "hidden"}), type="circle"),
+                ], width=6),
+                dbc.Col([
+                    dcc.Loading(dcc.Graph(id="lu-bar-graph"), type="circle")
+                ], width=6, style={"display": "flex", "alignItems": "center"})
+            ], style={"marginBottom": "30px", "alignItems": "center"}),
+
+             # --- Row 4: Land Use Text + Table ---
+            dbc.Row([
+                dbc.Col([
+                     html.Div(id="lu-text-container", style={"padding": "20px", "backgroundColor": "white", "borderRadius": "8px"}, children=[
+                         html.H4("Land Use Details", style={"color": THEME_COLOR}),
+                         dcc.Markdown(id="land-use-text", className="markdown-content", style={"textAlign": "justify"})
+                     ])
+                ], width=6),
+                dbc.Col([
+                    html.Div(id="basin-lu-table-container", style={"overflowX": "auto"})
+                ], width=6, style={"display": "flex", "alignItems": "center"})
+            ], style={"marginBottom": "30px", "alignItems": "start"}),
+
+            # --- Row 5: Dynamic Content (Climate, Results) ---
             html.Div(id="dynamic-content")
-        ])
+
+        ], fluid=False, style={"maxWidth": "1200px", "paddingTop": "20px"})
 
     return html.Div("404")
 
@@ -1143,27 +1151,14 @@ def update_year_controls(basin):
 )
 def render_basin_content(basin):
     if not basin or basin == "none" or basin == "all":
-        return html.Div(
-            style={"padding": "80px", "textAlign": "center", "color": "#64748b"},
-            children=[html.H3("Please select a basin above to view the analysis.", style={"color": THEME_COLOR})]
-        )
+        return html.Div()
 
-    content = []
-
-    # 1. Land Use Section (Text and Bar Graph)
-    # Map and Table are now in the top section
-    content.append(html.Div(className="graph-card", style={"padding": "30px", "backgroundColor": "white", "borderRadius": "10px", "boxShadow": "0 4px 6px rgba(0,0,0,0.1)", "marginTop": "30px"}, children=[
-        get_land_use_layout(basin)
-    ]))
-
-    # 2. Climate & Results
-    content.append(html.Div(className="graph-card", style={"padding": "30px", "backgroundColor": "white", "borderRadius": "10px", "boxShadow": "0 4px 6px rgba(0,0,0,0.1)", "marginTop": "30px"}, children=[
+    # Climate & Results
+    return html.Div(className="graph-card", style={"padding": "30px", "backgroundColor": "white", "borderRadius": "10px", "boxShadow": "0 4px 6px rgba(0,0,0,0.1)", "marginTop": "30px"}, children=[
         # Sections that depend on Year Selection
         get_climate_inputs_layout(basin),
         get_results_layout(basin)
-    ]))
-
-    return content
+    ])
 
 @app.callback(
     Output("report-content", "children"),
@@ -1389,7 +1384,7 @@ def update_lu_map_and_coupling(basin):
         except (ValueError, TypeError):
             continue
         stats.append({"Class": name, "Pct": (c/total)*100})
-    df_stats = pd.DataFrame(stats).sort_values("Pct", ascending=False).head(10)
+    df_stats = pd.DataFrame(stats).sort_values("Pct", ascending=False).head(5)
     fig_bar = px.bar(df_stats, x="Pct", y="Class", orientation='h', title="Top Land Use Classes")
     fig_bar.update_traces(marker_color=THEME_COLOR)
     fig_bar.update_layout(plot_bgcolor='white', font=dict(family="Segoe UI"))
@@ -1494,6 +1489,15 @@ def update_study_area_text(basin):
     if "No text available" in text:
         text = read_basin_text(basin, "studyarea.txt")
     return text
+
+@app.callback(
+    Output("land-use-text", "children"),
+    [Input("basin-dropdown", "value")]
+)
+def update_land_use_text(basin):
+    if not basin or basin == "none":
+        return "Select a basin to view land use details."
+    return read_basin_text(basin, "lu.txt")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 7860)), debug=False)
