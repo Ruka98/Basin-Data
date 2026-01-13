@@ -1,4 +1,0 @@
-The methodology follows the standard WA+ framework (http://www.wateraccounting.org).
-Remote sensing data is used to estimate Precipitation (P) and Evapotranspiration (ET).
-Land use data is derived from global datasets and refined with local information.
-The water balance is computed on a monthly basis and aggregated annually.
