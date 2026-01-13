@@ -25,8 +25,8 @@ st.set_page_config(
 )
 
 # IWMI Colors
-PRIMARY_COLOR = "#315F83" # IWMI Blue / Prompt Color
-THEME_COLOR = "#315F83"
+PRIMARY_COLOR = "#2B587A" # Updated Theme Color
+THEME_COLOR = "#2B587A"
 TEXT_COLOR = "#333333"
 BG_COLOR = "#F8F9FA"
 
@@ -70,7 +70,7 @@ st.markdown(f"""
 
     /* Hero Section */
     .hero-container {{
-        background: linear-gradient(rgba(0, 78, 162, 0.7), rgba(49, 95, 131, 0.8)), url('https://images.unsplash.com/photo-1589923188900-85dae5233271?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80');
+        background: linear-gradient(rgba(43, 88, 122, 0.7), rgba(43, 88, 122, 0.8)), url('https://images.unsplash.com/photo-1505144809822-ba3c40331397?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80');
         background-size: cover;
         background-position: center;
         padding: 6rem 2rem;
@@ -380,7 +380,7 @@ def make_basin_selector_map(selected_basin=None):
     z_vals = [1] * len(locations)
 
     # Colors
-    fill_color = "rgba(49, 95, 131, 0.4)" # Theme color alpha
+    fill_color = "rgba(43, 88, 122, 0.4)" # Updated Theme color alpha
     line_color = THEME_COLOR
 
     ch = go.Choroplethmapbox(
@@ -424,7 +424,7 @@ def render_home():
         st.info("📑 **WA+ Reporting**\n\nStandardized Water Accounting Plus (WA+) sheets and indicators to support evidence-based decision making.")
 
 def render_about():
-    st.title("About the Initiative")
+    st.title("Introduction")
 
     c1, c2 = st.columns(2)
     with c1:
@@ -463,17 +463,6 @@ def render_framework():
     *   **Qnatural**: Naturalized streamflow
     """)
     st.markdown('</div>', unsafe_allow_html=True)
-
-def render_data():
-    st.title("Data Inventory")
-    st.markdown("### Data Sources & Validation")
-    st.markdown("""
-    | Component | Source | Resolution |
-    |-----------|--------|------------|
-    | Precipitation (P) | CHIRPS / GPM | 5km / 10km |
-    | Evapotranspiration (ET) | WaPOR / SEBAL | 100m / 30m |
-    | Land Use | National Maps / Sentinel-2 | 10m |
-    """)
 
 def render_analysis():
     st.title("Water Accounting Analysis")
@@ -607,8 +596,8 @@ def main():
     # Navigation
     selected_page = option_menu(
         menu_title=None,
-        options=["Home", "About the Initiative", "Scientific Framework", "Data Inventory", "Water Accounting Analysis"],
-        icons=["house", "info-circle", "diagram-3", "database", "bar-chart-line"],
+        options=["Home", "Introduction", "Framework", "WA+ Analysis"],
+        icons=["house", "info-circle", "diagram-3", "bar-chart-line"],
         menu_icon="cast",
         default_index=0,
         orientation="horizontal",
@@ -623,13 +612,11 @@ def main():
     # Page Routing
     if selected_page == "Home":
         render_home()
-    elif selected_page == "About the Initiative":
+    elif selected_page == "Introduction":
         render_about()
-    elif selected_page == "Scientific Framework":
+    elif selected_page == "Framework":
         render_framework()
-    elif selected_page == "Data Inventory":
-        render_data()
-    elif selected_page == "Water Accounting Analysis":
+    elif selected_page == "WA+ Analysis":
         render_analysis()
 
     # Footer
