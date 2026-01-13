@@ -1,3 +1,0 @@
-1. Uncertainty in remote sensing data for P and ET.
-2. Limited ground truth data for validation.
-3. Complex hydrogeology makes groundwater flow estimation difficult.
