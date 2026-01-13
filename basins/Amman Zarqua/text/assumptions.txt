@@ -1,3 +1,0 @@
-1. All water stocks are assumed to be in the saturated zone unless otherwise specified.
-2. Inter-basin transfers are estimated based on government reports.
-3. Domestic water consumption is assumed to be constant throughout the year.
