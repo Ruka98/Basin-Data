@@ -11,5 +11,3 @@ dash-bootstrap-components
 pytest
 h5netcdf
 netcdf4
-streamlit
-streamlit-option-menu
