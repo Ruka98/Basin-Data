@@ -20,7 +20,9 @@ import fiona
 from shapely.geometry import shape as shp_shape, mapping
 from shapely import wkb as shp_wkb
 
+from app import app
 
+# All the utility functions from the original dashboard.py
 # =========================
 # XARRAY / NETCDF UTILITIES
 # =========================
@@ -682,364 +684,6 @@ class_info = {
     80: {"name": "Thermal power plants", "color": "rgb(0,0,0)"},
 }
 
-# ===========
-# DASH APP
-# ===========
-
-app = dash.Dash(__name__, suppress_callback_exceptions=True, external_stylesheets=[dbc.themes.BOOTSTRAP])
-
-basin_folders = [d for d in os.listdir(BASIN_DIR) if os.path.isdir(os.path.join(BASIN_DIR, d))] if os.path.isdir(BASIN_DIR) else []
-basin_options = [{"label": "Select a Basin...", "value": "none"}] + [{"label": b, "value": b} for b in sorted(basin_folders)]
-
-# Static Text Content
-INTRO_TEXT = read_common_text("intro.txt")
-OBJECTIVES_TEXT = read_common_text("objectives.txt")
-
-WA_FRAMEWORK_TEXT = """
-WA+ is a robust framework that harnesses the potential of publicly available remote sensing data to assess water resources and their consumption. Its reliance on such data is particularly beneficial in data scarce areas and transboundary basins. A significant benefit of WA+ lies in its incorporation of land use classification into water resource assessments, promoting a holistic approach to land and water management. This integration is crucial for sustaining food production amidst a changing climate, especially in regions where water is scarce. Notably, WA+ application has predominantly centered on monitoring water consumption in irrigated agriculture. The WA+ approach builds on a simplified water balance equation for a basin (Karimi et al., 2013):
-
-**∆S/∆t = P - ET - Q_out**                                                                                   (1)
-
-Where:
-*   **∆S** is the change in storage
-*   **∆t** is the change in time
-*   **P** is precipitation (mm/year or m3/year)
-*   **ET** is total actual evapotranspiration (mm/year or m3/year)
-*   **Qout** is total surface water outflow (mm/year or m3/year)
-
-To utilize the WA+ approach for water budget reporting in Jordan, it is important to account for all water users, other than irrigation, and their return flows into equation 1. Also, in Jordan, man-made inflows and outflows of great importance especially in heavily populated basins (Amdar et al., 2024). Therefore, an updated water balance incorporating various sectoral water consumption in addition to inflow and outflows is proposed (Amdar et al., 2024). Hence, equation (2) represents the updated WA+ water balance equation in the context of Jordan. This modification will further be refined following detailed discussions and consultations with the WEC and MWI team to ensure complete understanding and consensus of the customized framework for Jordan.
-
-**∆S/∆t = (P + Q_in) - (ET + CW_sec + Q_WWT + Q_re + Q_natural)**                               (2)
-
-where:
-*   **P** is the total precipitation (Mm3/year)
-*   **ET** is the total actual evapotranspiration (Mm3/year)
-*   **Qin** is the total inflows into the basin consisting of both surface water inflows and any other inter-basin transfers (Mm3/year)
-*   **Qre** is the total recharge to groundwater from precipitation and return flow (Mm3/year)
-*   **QWWT** is the total treated waste water that is returned to the river system after treatment. This could be from domestic, industry and tourism sectors (Mm3/year)
-*   **Qnatural** is the naturalized streamflow from the basin (Mm3/year)
-*   **CWsec** is the total non-irrigated water use/consumption (ie water that is not returned to the system but is consumed by humans) and is given by:
-
-**CWsec = Supplydomestic + Supplyindustrial + Supplylivestock + Supplytourism**
-(3)
-
-Where:
-*   **Supplydomestic** is the water supply for the domestic sector (Mm3/year)
-*   **Supplyindustrial** is the water supply for the industrial sector (Mm3/year)
-*   **Supplylivestock** is the water supply for the livestock sector (Mm3/year)
-*   **Supplytourism** is the water supply for the tourism sector (Mm3/year)
-
-The customized WA+ framework thus takes into account both agricultural and non-irrigated water consumption, water imports and the return of treated wastewater into the basin.
-"""
-
-LAND_USE_DATA = [
-    {"Class": "Natural", "Subclass": "Protected forests", "Area_Sub_km2": 6.14, "Area_Class_km2": 3378.9, "Area_Pct": 70, "P": 552.2, "ET": 633.8, "P_ET": -81.6},
-    {"Class": "Natural", "Subclass": "Protected shrubland", "Area_Sub_km2": 4.15, "Area_Class_km2": None, "Area_Pct": None, "P": 522.4, "ET": 583.1, "P_ET": -60.7},
-    {"Class": "Natural", "Subclass": "Protected other", "Area_Sub_km2": 26.38, "Area_Class_km2": None, "Area_Pct": None, "P": 416.8, "ET": 394.0, "P_ET": 22.8},
-    {"Class": "Natural", "Subclass": "Open deciduous forest", "Area_Sub_km2": 26.93, "Area_Class_km2": None, "Area_Pct": None, "P": 412.3, "ET": 452.6, "P_ET": -40.3},
-    {"Class": "Natural", "Subclass": "Closed evergreen forest", "Area_Sub_km2": 0.62, "Area_Class_km2": None, "Area_Pct": None, "P": 583.6, "ET": 727.3, "P_ET": -143.6},
-    {"Class": "Natural", "Subclass": "Shrub land & mesquite", "Area_Sub_km2": 211.79, "Area_Class_km2": None, "Area_Pct": None, "P": 407.2, "ET": 411.8, "P_ET": -4.6},
-    {"Class": "Natural", "Subclass": "Meadows & open grassland", "Area_Sub_km2": 1290.45, "Area_Class_km2": None, "Area_Pct": None, "P": 284.9, "ET": 174.3, "P_ET": 110.6},
-    {"Class": "Natural", "Subclass": "Fallow & idle land", "Area_Sub_km2": 1812.49, "Area_Class_km2": None, "Area_Pct": None, "P": 178.3, "ET": 24.4, "P_ET": 153.9},
-    {"Class": "Agricultural", "Subclass": "Rainfed crops", "Area_Sub_km2": 208.90, "Area_Class_km2": 1105.0, "Area_Pct": 23, "P": 285.7, "ET": 235.9, "P_ET": 49.8},
-    {"Class": "Agricultural", "Subclass": "Rainfed crops - other", "Area_Sub_km2": 818.83, "Area_Class_km2": None, "Area_Pct": None, "P": 209.8, "ET": 73.0, "P_ET": 136.8},
-    {"Class": "Agricultural", "Subclass": "Irrigated crops", "Area_Sub_km2": 75.68, "Area_Class_km2": None, "Area_Pct": None, "P": 202.6, "ET": 334.0, "P_ET": -131.4},
-    {"Class": "Agricultural", "Subclass": "Managed water bodies", "Area_Sub_km2": 1.56, "Area_Class_km2": None, "Area_Pct": None, "P": 538.9, "ET": 1045.7, "P_ET": -506.9},
-    {"Class": "Urban", "Subclass": "Urban paved Surface", "Area_Sub_km2": 345.97, "Area_Class_km2": 346.0, "Area_Pct": 7, "P": 268.2, "ET": 138.0, "P_ET": 130.1},
-    {"Class": "Total", "Subclass": "", "Area_Sub_km2": 4829.89, "Area_Class_km2": 4829.89, "Area_Pct": 100, "P": None, "ET": None, "P_ET": None},
-]
-
-
-# ==================
-# LAYOUT COMPONENTS
-# ==================
-
-def get_header():
-    return html.Nav(
-        className="navbar-custom",
-        children=[
-            html.Div(className="navbar-brand-group", children=[
-                html.Img(src=app.get_asset_url('iwmi.png'), className="nav-logo logo-white-filter"),
-                html.H1("Water Accounting Jordan", style={"color": "white", "margin": 0, "fontSize": "1.5rem", "fontWeight": "600"}),
-            ]),
-            html.Div(className="nav-links", children=[
-                dcc.Link("Home", href="/", className="nav-link"),
-                dcc.Link("Dashboard", href="/dashboard", className="nav-link"),
-                dbc.DropdownMenu(
-                    label="Resources",
-                    nav=True,
-                    in_navbar=True,
-                    children=[
-                        dbc.DropdownMenuItem("About Project", href="#"),
-                        dbc.DropdownMenuItem("Methodology", href="#"),
-                        dbc.DropdownMenuItem("Data Sources", href="#"),
-                    ],
-                    className="nav-link-dropdown",
-                    toggle_style={"color": "rgba(255, 255, 255, 0.9)", "fontWeight": "500", "background": "transparent", "border": "none"}
-                ),
-                dbc.Input(type="search", placeholder="Search...", className="me-2", style={"maxWidth": "200px", "borderRadius": "20px", "border": "none", "padding": "5px 15px", "fontSize": "0.9rem"}),
-                html.Img(src=app.get_asset_url('cgiar.png'), className="nav-logo logo-white-filter"),
-            ])
-        ]
-    )
-
-def get_footer():
-    return html.Footer(className="site-footer", children=[
-        html.Div(className="footer-content", children=[
-            html.Div(className="footer-col", children=[
-                html.H4("International Water Management Institute"),
-                html.P("Science for a water-secure world.", style={"color": "rgba(255,255,255,0.7)"})
-            ]),
-            html.Div(className="footer-col", children=[
-                html.H4("Quick Links"),
-                html.Ul(className="footer-links", children=[
-                    html.Li(dcc.Link("Dashboard", href="/dashboard")),
-                    html.Li(html.A("IWMI Website", href="https://www.iwmi.cgiar.org/", target="_blank")),
-                    html.Li(html.A("CGIAR", href="https://www.cgiar.org/", target="_blank")),
-                ])
-            ]),
-            html.Div(className="footer-col", children=[
-                html.H4("Contact"),
-                html.P("127 Sunil Mawatha, Pelawatte, Battaramulla, Sri Lanka", style={"color": "rgba(255,255,255,0.7)"}),
-                html.P("iwmi@cgiar.org", style={"color": "rgba(255,255,255,0.7)"})
-            ])
-        ]),
-        html.Div(className="footer-bottom", children=[
-            html.P("© 2024 International Water Management Institute (IWMI). All rights reserved.")
-        ])
-    ])
-
-def serve_landing_layout():
-    return html.Div([
-        get_header(),
-        # Hero Section
-        html.Div(className="hero-section", children=[
-            html.Div(className="hero-bg-overlay"),
-            html.Div(className="hero-content", children=[
-                html.H1("Rapid Water Accounting Dashboard - Jordan", className="hero-title"),
-                html.P("Empowering sustainable water management through advanced remote sensing data and hydrological modeling.", className="hero-subtitle"),
-                html.Div(className="hero-buttons", children=[
-                    dcc.Link("Explore Dashboard", href="/dashboard", className="btn-primary-lg"),
-                    html.A("Learn More", href="#features", className="btn-outline-lg")
-                ])
-            ])
-        ]),
-        # Features Section
-        html.Div(id="features", className="content-section", children=[
-            html.Div(className="section-container", children=[
-                html.Div(className="section-header", children=[
-                    html.H2("Key Features", className="section-title"),
-                    html.P("A comprehensive toolkit for water resource assessment in data-scarce regions.", className="section-desc")
-                ]),
-                html.Div(className="grid-3", children=[
-                    html.Div(className="feature-card", children=[
-                        html.Div("📊", className="feature-icon"),
-                        html.H3("Basin Analysis", className="feature-title"),
-                        html.P("Interactive maps and metrics for major basins in Jordan. Analyze inflows, outflows, and storage changes.", className="feature-text")
-                    ]),
-                    html.Div(className="feature-card", children=[
-                        html.Div("🌧️", className="feature-icon"),
-                        html.H3("Climate Data", className="feature-title"),
-                        html.P("Visualize long-term precipitation and evapotranspiration trends derived from high-resolution satellite data.", className="feature-text")
-                    ]),
-                    html.Div(className="feature-card", children=[
-                        html.Div("📑", className="feature-icon"),
-                        html.H3("WA+ Reporting", className="feature-title"),
-                        html.P("Standardized Water Accounting Plus (WA+) sheets and indicators to support evidence-based decision making.", className="feature-text")
-                    ])
-                ])
-            ])
-        ]),
-        get_footer()
-    ])
-
-
-def get_land_use_layout(basin):
-    """Generates the Land Use section (Static / Last Year)."""
-    # Read Land Use Text
-    lu_text = read_basin_text(basin, "lu.txt")
-
-    # Table logic
-    table_component = html.Div("No table data available.")
-    if basin == "Amman Zarqa":
-        df = pd.DataFrame(LAND_USE_DATA)
-        table_component = dash_table.DataTable(
-            data=df.to_dict('records'),
-            columns=[
-                {'name': 'Water Management Class', 'id': 'Class'},
-                {'name': 'Land and water use', 'id': 'Subclass'},
-                {'name': 'Area (km2)', 'id': 'Area_Sub_km2'},
-                {'name': 'Area (km2)', 'id': 'Area_Class_km2'},
-                {'name': 'Area (%)', 'id': 'Area_Pct'},
-                {'name': 'P (mm)', 'id': 'P'},
-                {'name': 'ET (mm)', 'id': 'ET'},
-                {'name': 'P-ET (mm)', 'id': 'P_ET'},
-            ],
-            style_table={'overflowX': 'auto'},
-            style_cell={
-                'textAlign': 'left',
-                'padding': '12px',
-                'fontFamily': 'Segoe UI, sans-serif',
-                'border': '1px solid #e2e8f0'
-            },
-            style_header={
-                'backgroundColor': '#eff6ff', # Light blue
-                'fontWeight': 'bold',
-                'color': '#004ea2',
-                'border': '1px solid #e2e8f0'
-            },
-            style_data_conditional=[
-                 {'if': {'row_index': 'odd'}, 'backgroundColor': '#f8fafc'}
-            ]
-        )
-
-    return html.Div([
-        html.H3("Land Use (Latest Year)", style={"color": "#004ea2", "marginTop": "20px", "borderBottom": "2px solid #004ea2", "paddingBottom": "10px"}),
-
-        dcc.Markdown(lu_text, className="markdown-content"),
-        html.Div(table_component, style={"marginTop": "20px", "marginBottom": "30px", "overflowX": "auto"}),
-        html.Div([
-            html.Div(dcc.Loading(dcc.Graph(id="lu-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-            html.Div(dcc.Loading(dcc.Graph(id="lu-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-        ]),
-    ], id="section-land-use")
-
-def get_climate_inputs_layout(basin):
-    """Generates Precipitation, ET, and Validation sections."""
-    return html.Div([
-        # Precipitation Subsection
-        html.H4("Precipitation", style={"color": "#004ea2", "marginTop": "40px", "fontSize": "1.5rem"}),
-        html.Div([
-            html.Div(dcc.Loading(dcc.Graph(id="p-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-            html.Div(dcc.Loading(dcc.Graph(id="p-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-        ]),
-        html.Div(id="p-explanation", className="graph-card", style={"marginTop":"10px"}),
-
-        # ET Subsection
-        html.H4("Evapotranspiration", style={"color": "#004ea2", "marginTop": "40px", "fontSize": "1.5rem"}),
-        html.Div([
-            html.Div(dcc.Loading(dcc.Graph(id="et-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-            html.Div(dcc.Loading(dcc.Graph(id="et-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-        ]),
-        html.Div(id="et-explanation", className="graph-card", style={"marginTop":"10px"}),
-
-        # Validation
-        html.H4("Data Validation", style={"color": "#004ea2", "marginTop": "40px", "fontSize": "1.5rem"}),
-         html.Div([
-             html.Div(dcc.Graph(id="val-p-scatter"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-             html.Div(dcc.Graph(id="val-et-scatter"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"})
-        ])
-    ], id="section-climate-inputs")
-
-
-def get_results_layout(basin):
-    return html.Div([
-        html.H3("Results", style={"color": "#004ea2", "marginTop": "40px", "borderBottom": "2px solid #004ea2", "paddingBottom": "10px"}),
-
-        # Overview
-        html.H4("Basin Overview", style={"color": "#004ea2", "fontSize": "1.5rem"}),
-        html.Div(id="basin-overview-content"),
-
-        # Water Balance
-        html.H4("Water Balance (P - ET)", style={"color": "#004ea2", "marginTop": "30px", "fontSize": "1.5rem"}),
-        html.Div([
-            html.Div(dcc.Loading(dcc.Graph(id="p-et-map-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-            html.Div(dcc.Loading(dcc.Graph(id="p-et-bar-graph"), type="circle"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-        ]),
-        html.Div(id="p-et-explanation", className="graph-card", style={"marginTop":"10px"}),
-
-        # WA+ Sheets
-        html.H4("Water Accounting Reports", style={"color": "#004ea2", "marginTop": "30px", "fontSize": "1.5rem"}),
-        dcc.Loading(dcc.Graph(id="wa-resource-base-sankey"), type="circle"),
-        dcc.Loading(dcc.Graph(id="wa-sectoral-bar"), type="circle"),
-        html.Div(id="wa-indicators-container"), # Added container for indicators
-
-        # Reports Tabs
-        html.H4("Documentation", style={"color": "#004ea2", "marginTop": "40px", "fontSize": "1.5rem"}),
-        html.Div([
-            dcc.Tabs(id="inner-report-tabs", value="assumptions", vertical=True, children=[
-                dcc.Tab(label="Assumptions", value="assumptions", style={'color': '#004ea2'}, selected_style={'fontWeight': 'bold', 'color': '#004ea2', 'borderLeft': '3px solid #004ea2'}),
-                dcc.Tab(label="Limitations", value="limitations", style={'color': '#004ea2'}, selected_style={'fontWeight': 'bold', 'color': '#004ea2', 'borderLeft': '3px solid #004ea2'}),
-            ], style={"height": "300px", "width": "20%", "display": "inline-block", "verticalAlign": "top"}),
-            html.Div(id="report-content", style={"width": "75%", "display": "inline-block", "marginLeft": "2%", "padding": "25px", "backgroundColor": "white", "borderRadius": "8px", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "border": "1px solid #eee"})
-        ])
-    ], id="section-results")
-
-def serve_dashboard_layout():
-    return html.Div(className="dashboard-wrapper", children=[
-        get_header(),
-        html.Div(className="dashboard-container", children=[
-            dbc.Tabs(className="nav-tabs", children=[
-                dbc.Tab(label="Introduction", children=[
-                    html.Div(className="graph-card", style={"marginTop": "20px"}, children=[
-                        html.H2("1. Introduction", style={"color": "#004ea2", "marginBottom": "20px"}),
-                        dcc.Markdown(INTRO_TEXT, className="markdown-content")
-                    ])
-                ]),
-                dbc.Tab(label="Objectives", children=[
-                    html.Div(className="graph-card", style={"marginTop": "20px"}, children=[
-                        html.H2("2. Objectives and Deliverables", style={"color": "#004ea2", "marginBottom": "20px"}),
-                        dcc.Markdown(OBJECTIVES_TEXT, className="markdown-content")
-                    ])
-                ]),
-                dbc.Tab(label="Framework", children=[
-                     html.Div(className="graph-card", style={"marginTop": "20px"}, children=[
-                        html.H2("3. Customized WA+ Analytics for Jordan", style={"color": "#004ea2", "marginBottom": "20px"}),
-                        dcc.Markdown(WA_FRAMEWORK_TEXT, className="markdown-content")
-                    ])
-                ]),
-                dbc.Tab(label="Explore Data", children=[
-                    html.Div(
-                        className="filters-panel",
-                        style={"marginTop": "20px"},
-                        children=[
-                            html.Div(style={"maxWidth": "1200px", "margin": "0 auto"}, children=[
-                                html.H3("4. Select Basin", style={"color": "#004ea2", "marginBottom": "20px", "fontWeight": "600", "fontSize": "1.8rem"}),
-                                html.Div([
-                                    html.Div([
-                                         html.Label("Choose from list:", style={"fontWeight": "bold", "marginBottom": "10px", "display": "block", "color": "#004ea2"}),
-                                         dcc.Dropdown(
-                                            id="basin-dropdown",
-                                            options=basin_options,
-                                            value=None,
-                                            placeholder="Select a basin...",
-                                            style={"borderRadius": "4px"}
-                                        ),
-                                        # Study Area Text Area
-                                        html.Div(id="study-area-container", style={"marginTop": "20px", "padding": "20px", "backgroundColor": "#f0f4f8", "borderRadius": "8px", "fontSize": "1rem", "lineHeight": "1.8", "color": "#2c3e50", "textAlign": "justify", "borderLeft": "4px solid #004ea2"})
-                                    ], style={"width": "30%", "display": "inline-block", "verticalAlign": "top"}),
-
-                                    html.Div([
-                                         dcc.Graph(id="basin-map", style={"height": "400px", "borderRadius": "8px", "overflow": "hidden"})
-                                    ], style={"width": "68%", "display": "inline-block", "marginLeft": "2%", "verticalAlign": "top", "boxShadow": "0 4px 12px rgba(0,0,0,0.1)", "borderRadius": "8px"})
-                                ])
-                            ])
-                        ]
-                    ),
-                    html.Div(id="dynamic-content")
-                ]),
-            ])
-        ])
-    ])
-
-# Define the app layout with routing
-app.layout = html.Div([
-    dcc.Location(id='url', refresh=False),
-    html.Div(id='page-content')
-])
-
-
-# === CALLBACKS ===
-
-# Routing Callback
-@app.callback(Output('page-content', 'children'),
-              [Input('url', 'pathname')])
-def display_page(pathname):
-    if pathname == '/dashboard':
-        return serve_dashboard_layout()
-    else:
-        return serve_landing_layout()
-
 @app.callback(
     Output("basin-map", "figure"),
     [Input("basin-dropdown", "value")]
@@ -1070,7 +714,7 @@ def update_study_area_text(basin):
     if "No text available" in text:
         text = read_basin_text(basin, "studyarea.txt") # Fallback to no-space version if needed
 
-    return [html.H4(f"{basin} Study Area", style={"marginTop": "0", "color": "#004ea2"}), dcc.Markdown(text)]
+    return [html.H4(f"{basin} Study Area", style={"marginTop": "0", "color": "#315F83"}), dcc.Markdown(text)]
 
 def get_year_options(basin):
     p_fp = find_nc_file(basin, "P")
@@ -1112,7 +756,7 @@ def render_basin_content(basin):
     if not basin or basin == "none" or basin == "all":
         return html.Div(
             style={"padding": "80px", "textAlign": "center", "color": "#64748b"},
-            children=[html.H3("Please select a basin above to view the analysis.", style={"color": "#004ea2"})]
+            children=[html.H3("Please select a basin above to view the analysis.", style={"color": "#315F83"})]
         )
 
     # Get years
@@ -1131,8 +775,8 @@ def render_basin_content(basin):
     content.append(html.Div(className="graph-card", children=[
 
         # Global Settings for Climate/Results
-        html.Div(style={"backgroundColor": "#f8fafc", "padding": "25px", "borderRadius": "8px", "marginBottom": "40px", "borderLeft": "5px solid #004ea2"}, children=[
-            html.H4("Analysis Settings (For Climate & Results)", style={"marginTop": "0", "color": "#004ea2", "marginBottom": "15px"}),
+        html.Div(style={"backgroundColor": "#f8fafc", "padding": "25px", "borderRadius": "8px", "marginBottom": "40px", "borderLeft": "5px solid #315F83"}, children=[
+            html.H4("Analysis Settings (For Climate & Results)", style={"marginTop": "0", "color": "#315F83", "marginBottom": "15px"}),
             html.Div([
                 html.Div([
                     html.Label("Start Year", style={"fontWeight": "bold", "color": "#2c3e50"}),
@@ -1211,9 +855,9 @@ def update_basin_overview(basin, start_year, end_year):
         return html.Div([
             html.Div(metric_cards, style={"marginBottom": "20px"}),
             html.Div([
-                html.H5("Executive Summary", style={"color": "#004ea2", "fontWeight": "bold", "marginBottom": "10px"}),
+                html.H5("Executive Summary", style={"color": "#315F83", "fontWeight": "bold", "marginBottom": "10px"}),
                 html.Ul([html.Li(item, style={"marginBottom": "8px"}) for item in summary_items], style={"paddingLeft": "20px"})
-            ], style={"padding": "20px", "backgroundColor": "#eff6ff", "borderRadius": "8px", "borderLeft": "4px solid #004ea2", "color": "#2c3e50"})
+            ], style={"padding": "20px", "backgroundColor": "#eff6ff", "borderRadius": "8px", "borderLeft": "4px solid #315F83", "color": "#2c3e50"})
         ])
     except Exception as e:
         return html.Div(f"Error: {e}")
@@ -1256,7 +900,7 @@ def _hydro_figs(basin: str, start_year: int | None, end_year: int | None, vtype:
         months = [pd.to_datetime(m, format="%m").strftime("%b") for m in monthly["Month"].values]
         y_vals = np.asarray(monthly.values).flatten()
         fig_bar = px.bar(x=months, y=y_vals, title=f"Mean Monthly {vtype}")
-        fig_bar.update_traces(marker_color='#004ea2') # IWMI Blue
+        fig_bar.update_traces(marker_color='#315F83') # IWMI Blue
         fig_bar.update_layout(plot_bgcolor='white', font=dict(family="Segoe UI"))
         explanation = _generate_explanation(vtype, basin, ys, ye, y_vals, months)
     except:
@@ -1288,7 +932,7 @@ def update_p_et_outputs(basin, start_year, end_year):
         months = [pd.to_datetime(m, format="%m").strftime("%b") for m in monthly["month"].values]
         y_vals = monthly.values.flatten()
         fig_bar = px.bar(x=months, y=y_vals, title="Mean Monthly P-ET")
-        fig_bar.update_traces(marker_color='#004ea2')
+        fig_bar.update_traces(marker_color='#315F83')
         fig_bar.update_layout(plot_bgcolor='white', font=dict(family="Segoe UI"))
         explanation = _generate_explanation("P-ET", basin, ys, ye, y_vals, months)
     except:
@@ -1318,7 +962,7 @@ def update_lu_map_and_coupling(basin):
         stats.append({"Class": name, "Pct": (c/total)*100})
     df_stats = pd.DataFrame(stats).sort_values("Pct", ascending=False).head(10)
     fig_bar = px.bar(df_stats, x="Pct", y="Class", orientation='h', title="Top Land Use Classes")
-    fig_bar.update_traces(marker_color='#004ea2')
+    fig_bar.update_traces(marker_color='#315F83')
     fig_bar.update_layout(plot_bgcolor='white', font=dict(family="Segoe UI"))
 
     return fig_map, fig_bar
@@ -1347,7 +991,7 @@ def update_validation_plots(basin):
     def sc(df, t):
         if df.empty: return _empty_fig(f"No Data {t}")
         fig = px.scatter(df, x='Observed', y='Satellite', title=t)
-        fig.update_traces(marker_color='#004ea2')
+        fig.update_traces(marker_color='#315F83')
         fig.update_layout(plot_bgcolor='white', font=dict(family="Segoe UI"))
         return fig
 
@@ -1408,5 +1052,3 @@ def update_wa_wrapper(basin, start, end):
 def update_val_wrapper(basin):
     return update_validation_plots(basin)
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 7860)), debug=False)
