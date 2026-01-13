@@ -572,7 +572,7 @@ def make_basin_selector_map(selected_basin=None) -> go.Figure:
     locations = [f["properties"]["basin"] for f in gj["features"]]
     z_vals = [1] * len(locations)
 
-    ch = go.Choroplethmapbox(
+    ch = go.Choroplethmap(
         geojson=gj, locations=locations, featureidkey="properties.basin", z=z_vals,
         colorscale=[[0, "rgba(43, 88, 122, 0.4)"], [1, "rgba(43, 88, 122, 0.4)"]], # Theme color with alpha
         marker=dict(line=dict(width=3 if selected_basin and selected_basin != "all" else 1.8, color=THEME_COLOR)),
@@ -588,17 +588,9 @@ def make_basin_selector_map(selected_basin=None) -> go.Figure:
 
     center_lon = (west + east) / 2.0
     center_lat = (south + north) / 2.0
-    span_lon = max(east - west, 0.001)
-    span_lat = max(north - south, 0.001)
-
-    import math
-    map_w, map_h = 900.0, 600.0
-    lon_zoom = math.log2(360.0 / (span_lon * 1.1)) + math.log2(map_w / 512.0)
-    lat_zoom = math.log2(180.0 / (span_lat * 1.1)) + math.log2(map_h / 512.0)
-    zoom = max(0.0, min(16.0, lon_zoom, lat_zoom))
 
     fig.update_layout(
-        mapbox=dict(style="carto-positron", center=dict(lon=center_lon, lat=center_lat), zoom=zoom),
+        map_style="carto-positron",
         margin=dict(l=0, r=0, t=0, b=0), uirevision=selected_basin if selected_basin else "all", clickmode="event+select", height=400,
     )
     return fig
@@ -606,86 +598,14 @@ def make_basin_selector_map(selected_basin=None) -> go.Figure:
 
 # Land use class information
 class_info = {
-    1: {"name": "Protected forests", "color": "rgb(0,40,0)"},
-    2: {"name": "Protected shrubland", "color": "rgb(190,180,60)"},
-    3: {"name": "Protected natural grasslands", "color": "rgb(176,255,33)"},
-    4: {"name": "Protected natural waterbodies", "color": "rgb(83,142,213)"},
-    5: {"name": "Protected wetlands", "color": "rgb(40,250,180)"},
-    6: {"name": "Glaciers", "color": "rgb(255,255,255)"},
-    7: {"name": "Protected other", "color": "rgb(219,214,0)"},
-    8: {"name": "Closed deciduous forest", "color": "rgb(0,70,0)"},
-    9: {"name": "Open deciduous forest", "color": "rgb(0,124,0)"},
-    10: {"name": "Closed evergreen forest", "color": "rgb(0,100,0)"},
-    11: {"name": "Open evergreen forest", "color": "rgb(0,140,0)"},
-    12: {"name": "Closed savanna", "color": "rgb(155,150,50)"},
-    13: {"name": "Open savanna", "color": "rgb(255,190,90)"},
-    14: {"name": "Shrub land & mesquite", "color": "rgb(120,150,30)"},
-    15: {"name": "Herbaceous cover", "color": "rgb(90,115,25)"},
-    16: {"name": "Meadows & open grassland", "color": "rgb(140,190,100)"},
-    17: {"name": "Riparian corridor", "color": "rgb(30,190,170)"},
-    18: {"name": "Deserts", "color": "rgb(245,255,230)"},
-    19: {"name": "Wadis", "color": "rgb(200,230,255)"},
-    20: {"name": "Natural alpine pastures", "color": "rgb(86,134,0)"},
-    21: {"name": "Rocks & gravel & stones & boulders", "color": "rgb(255,210,110)"},
-    22: {"name": "Permafrosts", "color": "rgb(230,230,230)"},
-    23: {"name": "Brooks & rivers & waterfalls", "color": "rgb(0,100,240)"},
-    24: {"name": "Natural lakes", "color": "rgb(0,55,154)"},
-    25: {"name": "Flood plains & mudflats", "color": "rgb(165,230,100)"},
-    26: {"name": "Saline sinks & playas & salinized soil", "color": "rgb(210,230,210)"},
-    27: {"name": "Bare soil", "color": "rgb(240,165,20)"},
-    28: {"name": "Waste land", "color": "rgb(230,220,210)"},
-    29: {"name": "Moorland", "color": "rgb(190,160,140)"},
-    30: {"name": "Wetland", "color": "rgb(33,193,132)"},
-    31: {"name": "Mangroves", "color": "rgb(28,164,112)"},
-    32: {"name": "Alien invasive species", "color": "rgb(100,255,150)"},
-    33: {"name": "Rainfed forest plantations", "color": "rgb(245,250,194)"},
-    34: {"name": "Rainfed production pastures", "color": "rgb(237,246,152)"},
-    35: {"name": "Rainfed crops - cereals", "color": "rgb(226,240,90)"},
-    36: {"name": "Rainfed crops - root/tuber", "color": "rgb(209,229,21)"},
-    37: {"name": "Rainfed crops - legumious", "color": "rgb(182,199,19)"},
-    38: {"name": "Rainfed crops - sugar", "color": "rgb(151,165,15)"},
-    39: {"name": "Rainfed crops - fruit and nuts", "color": "rgb(132,144,14)"},
-    40: {"name": "Rainfed crops - vegetables and melons", "color": "rgb(112,122,12)"},
-    41: {"name": "Rainfed crops - oilseed", "color": "rgb(92,101,11)"},
-    42: {"name": "Rainfed crops - beverage and spice", "color": "rgb(71,80,8)"},
-    43: {"name": "Rainfed crops - other", "color": "rgb(51,57,5)"},
-    44: {"name": "Mixed species agro-forestry", "color": "rgb(80,190,40)"},
-    45: {"name": "Fallow & idle land", "color": "rgb(180,160,180)"},
-    46: {"name": "Dump sites & deposits", "color": "rgb(145,130,115)"},
-    47: {"name": "Rainfed homesteads and gardens (urban cities) - outdoor", "color": "rgb(120,5,25)"},
-    48: {"name": "Rainfed homesteads and gardens (rural villages) - outdoor", "color": "rgb(210,10,40)"},
-    49: {"name": "Rainfed industry parks - outdoor", "color": "rgb(255,130,45)"},
-    50: {"name": "Rainfed parks (leisure & sports)", "color": "rgb(250,101,0)"},
-    51: {"name": "Rural paved surfaces (lots, roads, lanes)", "color": "rgb(255,150,150)"},
-    52: {"name": "Irrigated forest plantations", "color": "rgb(179,243,241)"},
-    53: {"name": "Irrigated production pastures", "color": "rgb(158,240,238)"},
-    54: {"name": "Irrigated crops - cereals", "color": "rgb(113,233,230)"},
-    55: {"name": "Irrigated crops - root/tubers", "color": "rgb(82,228,225)"},
-    56: {"name": "Irrigated crops - legumious", "color": "rgb(53,223,219)"},
-    57: {"name": "Irrigated crops - sugar", "color": "rgb(33,205,201)"},
-    58: {"name": "Irrigated crops - fruit and nuts", "color": "rgb(29,179,175)"},
-    59: {"name": "Irrigated crops - vegetables and melons", "color": "rgb(25,151,148)"},
-    60: {"name": "Irrigated crops - Oilseed", "color": "rgb(21,125,123)"},
-    61: {"name": "Irrigated crops - beverage and spice", "color": "rgb(17,101,99)"},
-    62: {"name": "Irrigated crops - other", "color": "rgb(13,75,74)"},
-    63: {"name": "Managed water bodies (reservoirs, canals, harbors, tanks)", "color": "rgb(0,40,112)"},
-    64: {"name": "Greenhouses - indoor", "color": "rgb(255,204,255)"},
-    65: {"name": "Aquaculture", "color": "rgb(47,121,255)"},
-    66: {"name": "Domestic households - indoor (sanitation)", "color": "rgb(255,60,10)"},
-    67: {"name": "Manufacturing & commercial industry - indoor", "color": "rgb(180,180,180)"},
-    68: {"name": "Irrigated homesteads and gardens (urban cities) - outdoor", "color": "rgb(255,139,255)"},
-    69: {"name": "Irrigated homesteads and gardens (rural villages) - outdoor", "color": "rgb(255,75,255)"},
-    70: {"name": "Irrigated industry parks - outdoor", "color": "rgb(140,140,140)"},
-    71: {"name": "Irrigated parks (leisure, sports)", "color": "rgb(150,0,205)"},
-    72: {"name": "Urban paved Surface (lots, roads, lanes)", "color": "rgb(120,120,120)"},
-    73: {"name": "Livestock and domestic husbandry", "color": "rgb(180,130,130)"},
-    74: {"name": "Managed wetlands & swamps", "color": "rgb(30,130,115)"},
-    75: {"name": "Managed other inundation areas", "color": "rgb(20,150,130)"},
-    76: {"name": "Mining/ quarry & shale exploiration", "color": "rgb(100,100,100)"},
-    77: {"name": "Evaporation ponds", "color": "rgb(30,90,130)"},
-    78: {"name": "Waste water treatment plants", "color": "rgb(60,60,60)"},
-    79: {"name": "Hydropower plants", "color": "rgb(40,40,40)"},
-    80: {"name": "Thermal power plants", "color": "rgb(0,0,0)"},
+    1: {"name": "Urban (High Density)", "color": "rgb(255,0,0)"},
+    2: {"name": "Urban (Low Density)", "color": "rgb(255,128,128)"},
+    3: {"name": "Agriculture (Irrigated)", "color": "rgb(0,255,0)"},
+    4: {"name": "Agriculture (Rainfed)", "color": "rgb(128,255,128)"},
+    5: {"name": "Rangeland", "color": "rgb(255,255,0)"},
+    6: {"name": "Forest", "color": "rgb(0,128,0)"},
+    7: {"name": "Barren", "color": "rgb(128,128,128)"},
+    8: {"name": "Water", "color": "rgb(0,0,255)"},
 }
 
 # ===========
@@ -903,12 +823,6 @@ def get_climate_inputs_layout(basin):
         ]),
         html.Div(id="et-explanation", className="graph-card", style={"marginTop":"10px"}),
 
-        # Validation
-        html.H4("Data Validation", style={"color": THEME_COLOR, "marginTop": "40px", "fontSize": "1.5rem"}),
-         html.Div([
-             html.Div(dcc.Graph(id="val-p-scatter"), style={"width": "49%", "display": "inline-block", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"}),
-             html.Div(dcc.Graph(id="val-et-scatter"), style={"width": "49%", "display": "inline-block", "float": "right", "boxShadow": "0 2px 8px rgba(0,0,0,0.05)", "borderRadius": "8px"})
-        ])
     ], id="section-climate-inputs")
 
 
@@ -1015,11 +929,11 @@ def render_tab_content(active_tab):
                                     html.Label("End Year", style={"fontWeight": "bold", "color": "#2c3e50"}),
                                     dcc.Dropdown(id="global-end-year-dropdown", clearable=False, style={"borderRadius": "4px"})
                                 ]),
-                                # Study Area Text (Restored to Left Column)
-                                html.Div(id="study-area-container", style={"marginTop": "30px", "padding": "20px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "borderLeft": f"4px solid {THEME_COLOR}"}, children=[
-                                    html.H4("Study Area", style={"color": THEME_COLOR, "fontSize": "1.2rem"}),
-                                    dcc.Markdown(id="study-area-text", className="markdown-content", style={"textAlign": "justify", "fontSize": "0.9rem"})
-                                ])
+                                # Site Description
+                                html.Div([
+                                    html.P("""The Amman Zarqa basin covers approximately an area of 4,100 km2, with a large portion (over 93% of the basin) located in Jordan and 7% in Syria (Figure 1). A large portion of Jordan’s population are dependent on the various agricultural and industrial activities that the basin supports. The outflow of the basin serves as irrigation water source for the greater Jordan Valley (Al-Omari et al., 2013; Amdar et al., 2024; Hammouri & El-Naqa, 2007)."""),
+                                    html.P("""Annual precipitation ranges from 50 mm/year in the east to more than 500 mm/year in the northwest near Ajloun and in the southwest of Amman near Umm as Summaq. These variations, primarily due to topographic influences, result in an estimated long-term average annual precipitation volume of 782 (Mm3/year) (MWI, 2023).""")
+                                ], style={"marginTop": "30px", "padding": "20px", "backgroundColor": "#f8fafc", "borderRadius": "8px", "borderLeft": f"4px solid {THEME_COLOR}"})
                             ], style={"width": "30%", "display": "inline-block", "verticalAlign": "top"}),
 
                             # Right Column (Map + Table)
