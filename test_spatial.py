@@ -4,7 +4,7 @@ import xarray as xr
 import pytest
 import os
 
-basin = "Amman Zarqua"
+basin = "Amman Zarqa"
 
 def test_find_nc_file():
     # Test if file finding works
