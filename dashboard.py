@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import collections
 import textwrap
+import calendar
 
 import dash
 from dash import dcc, html, dash_table
@@ -589,14 +590,20 @@ def make_basin_selector_map(selected_basin=None) -> go.Figure:
     span_lat = max(north - south, 0.001)
 
     import math
-    map_w, map_h = 900.0, 600.0
-    lon_zoom = math.log2(360.0 / (span_lon * 1.1)) + math.log2(map_w / 512.0)
-    lat_zoom = math.log2(180.0 / (span_lat * 1.1)) + math.log2(map_h / 512.0)
-    zoom = max(0.0, min(16.0, lon_zoom, lat_zoom))
+
+    # Default to Jordan if no basin selected
+    if not selected_basin or selected_basin == "all" or selected_basin == "none":
+        center_lon, center_lat = 36.6, 31.2
+        zoom = 7.0
+    else:
+        map_w, map_h = 900.0, 600.0
+        lon_zoom = math.log2(360.0 / (span_lon * 1.1)) + math.log2(map_w / 512.0)
+        lat_zoom = math.log2(180.0 / (span_lat * 1.1)) + math.log2(map_h / 512.0)
+        zoom = max(0.0, min(16.0, lon_zoom, lat_zoom))
 
     fig.update_layout(
         mapbox=dict(style="carto-positron", center=dict(lon=center_lon, lat=center_lat), zoom=zoom),
-        margin=dict(l=0, r=0, t=0, b=0), uirevision=selected_basin if selected_basin else "all", clickmode="event+select", height=400,
+        margin=dict(l=0, r=0, t=0, b=0), uirevision=selected_basin if selected_basin else "all", clickmode="event+select", height=450,
     )
     return fig
 
@@ -973,7 +980,7 @@ def get_modern_analysis_layout():
             dbc.Col([
                 html.Div(id="map-content-container", style={"display": "none"}, children=[
                      html.H4("Study Area Map", style={"color": THEME_COLOR}),
-                     dcc.Loading(dcc.Graph(id="osm-basin-map", style={"height": "300px", "borderRadius": "8px", "overflow": "hidden"}, config={"scrollZoom": True}), type="circle"),
+                     dcc.Loading(dcc.Graph(id="osm-basin-map", style={"height": "450px", "borderRadius": "8px", "overflow": "hidden"}, config={"scrollZoom": True}), type="circle"),
                 ])
             ], width=12, lg=8)
         ], className="mb-4"),
@@ -1325,23 +1332,102 @@ def update_basin_overview(basin, start_year, end_year):
     except Exception as e:
         return html.Div(f"Error: {e}"), html.Div()
 
-def _generate_explanation(vtype: str, basin: str, start_year: int, end_year: int, y_vals: np.ndarray, months: list):
-    mean_val = np.nanmean(y_vals)
-    max_val = np.nanmax(y_vals)
-    min_val = np.nanmin(y_vals)
-    max_month = months[np.nanargmax(y_vals)]
-    min_month = months[np.nanargmin(y_vals)]
+def _generate_explanation(vtype: str, basin: str, start_year: int, end_year: int, da_ts: xr.DataArray):
+    if da_ts is None:
+        return "Data not available."
+
+    spatial_text = ""
+    temporal_text = ""
+    seasonality_text = ""
     
-    if vtype == "P":
-        return (f"**Precipitation ({start_year}–{end_year}):** Average monthly P is **{mean_val:.2f} mm**. "
-                f"Peak in **{max_month}** (**{max_val:.2f} mm**), lowest in **{min_month}**.")
-    elif vtype == "ET":
-        return (f"**Evapotranspiration ({start_year}–{end_year}):** Average monthly ET is **{mean_val:.2f} mm**. "
-                f"Peak in **{max_month}** (**{max_val:.2f} mm**).")
-    elif vtype == "P-ET":
-        return (f"**Water Balance ({start_year}–{end_year}):** Average monthly P-ET is **{mean_val:.2f} mm**. "
-                f"Max surplus in **{max_month}**, max deficit in **{min_month}**.")
-    return ""
+    # 1. Spatial Analysis (Annual)
+    try:
+        # Sum over time (year) to get annual total map
+        annual_spatial = da_ts.groupby("time.year").sum(dim="time") # (year, lat, lon)
+        mean_annual_spatial = annual_spatial.mean(dim="year") # (lat, lon)
+
+        # West vs East logic
+        lon = mean_annual_spatial.longitude
+        mid_lon = float(lon.min() + lon.max()) / 2
+
+        west_part = mean_annual_spatial.where(mean_annual_spatial.longitude < mid_lon)
+        east_part = mean_annual_spatial.where(mean_annual_spatial.longitude >= mid_lon)
+
+        west_val = float(west_part.mean(skipna=True))
+        east_val = float(east_part.mean(skipna=True))
+
+        if west_val > east_val * 1.05:
+            direction_high = "western"
+            direction_low = "eastern"
+            val_high = west_val
+        elif east_val > west_val * 1.05:
+            direction_high = "eastern"
+            direction_low = "western"
+            val_high = east_val
+        else:
+            direction_high = "central"
+            direction_low = "peripheral"
+            val_high = float(mean_annual_spatial.mean())
+
+        spatial_text = (f"The spatial distribution of {vtype} indicates higher values (~{val_high:.0f} mm/year) "
+                        f"in the {direction_high} part of the basin and lower values in the {direction_low} portion.")
+    except Exception:
+        spatial_text = f"Spatial distribution data for {vtype} is being analyzed."
+
+    # 2. Temporal Analysis (Years)
+    try:
+        spatial_mean_ts = da_ts.mean(dim=["latitude", "longitude"], skipna=True)
+        annual_series = spatial_mean_ts.groupby("time.year").sum(dim="time")
+
+        lta = float(annual_series.mean())
+
+        below_avg_years = []
+        above_avg_years = []
+
+        years = annual_series.year.values
+        vals = annual_series.values
+
+        for y, v in zip(years, vals):
+            if v < lta:
+                below_avg_years.append(str(y))
+            else:
+                above_avg_years.append(str(y))
+
+        def fmt_years(ylist):
+            if not ylist: return "none"
+            if len(ylist) == 1: return ylist[0]
+            return ", ".join(ylist[:-1]) + " and " + ylist[-1]
+
+        temporal_text = (f"For the period {start_year}-{end_year}, {vtype} has been a mix of below average (<{lta:.0f} mm) years ({fmt_years(below_avg_years)}) "
+                         f"and above average (>{lta:.0f} mm) years ({fmt_years(above_avg_years)}).")
+    except Exception:
+        temporal_text = ""
+
+    # 3. Seasonality
+    try:
+        # Re-calculate spatial mean TS if needed (it should be available from block 2 but scoping...)
+        spatial_mean_ts = da_ts.mean(dim=["latitude", "longitude"], skipna=True)
+        monthly_clim = spatial_mean_ts.groupby("time.month").mean(dim="time")
+
+        df_m = pd.DataFrame({"month": monthly_clim.month.values, "val": monthly_clim.values})
+        df_m = df_m.sort_values("val", ascending=False)
+
+        top_3 = df_m.head(3)
+        low_3 = df_m.tail(4)
+
+        top_months = [calendar.month_name[int(m)] for m in top_3.month]
+        top_range = f"{top_3.val.min():.0f}-{top_3.val.max():.0f}"
+
+        low_months_sorted = low_3.sort_values("month")
+        low_start = calendar.month_name[int(low_months_sorted.iloc[0].month)]
+        low_end = calendar.month_name[int(low_months_sorted.iloc[-1].month)]
+
+        seasonality_text = (f"The largest {vtype} amounts typically occur in {', '.join(top_months)} ({top_range} mm/month) "
+                            f"and the low period is generally {low_start} – {low_end}.")
+    except Exception:
+        seasonality_text = ""
+
+    return f"{spatial_text} {temporal_text} {seasonality_text}"
 
 def _hydro_figs(basin: str, start_year: int | None, end_year: int | None, vtype: str):
     if not basin or basin == "none": return _empty_fig(), _empty_fig(), ""
@@ -1357,6 +1443,9 @@ def _hydro_figs(basin: str, start_year: int | None, end_year: int | None, vtype:
     fig_map = _create_clean_heatmap(da_map, f"Mean {vtype}", colorscale, "mm")
     fig_map = add_shapefile_to_fig(fig_map, basin)
 
+    # Explanation using full time series data
+    explanation = _generate_explanation(vtype, basin, ys, ye, da_ts)
+
     spatial_mean_ts = da_ts.mean(dim=["latitude", "longitude"], skipna=True)
     try:
         monthly = spatial_mean_ts.groupby("time.month").mean(skipna=True).rename({"month": "Month"})
@@ -1369,12 +1458,10 @@ def _hydro_figs(basin: str, start_year: int | None, end_year: int | None, vtype:
         fig_bar = px.bar(x=months, y=y_vals, title=f"Mean Monthly {vtype}")
         fig_bar.update_traces(marker_color=THEME_COLOR)
         fig_bar.update_layout(plot_bgcolor='white', font=dict(family="Segoe UI"))
-        explanation = _generate_explanation(vtype, basin, ys, ye, y_vals, months)
     except:
         fig_bar = _empty_fig("Data Error")
-        explanation = "Error"
         
-    return fig_map, fig_bar, dcc.Markdown(explanation, className="markdown-content")
+    return fig_map, fig_bar, dcc.Markdown(explanation, className="markdown-content", style={"textAlign": "justify"})
 
 def update_p_et_outputs(basin, start_year, end_year):
     if not basin or basin == "none" or not start_year or not end_year:
@@ -1393,6 +1480,9 @@ def update_p_et_outputs(basin, start_year, end_year):
     fig_map = _create_clean_heatmap(da_map, "Mean P-ET", "RdBu", "mm")
     fig_map = add_shapefile_to_fig(fig_map, basin)
 
+    # Explanation
+    explanation = _generate_explanation("P-ET", basin, ys, ye, da_pet)
+
     spatial_mean = da_pet.mean(dim=["latitude", "longitude"], skipna=True)
     try:
         monthly = spatial_mean.groupby("time.month").mean(skipna=True)
@@ -1405,11 +1495,10 @@ def update_p_et_outputs(basin, start_year, end_year):
         fig_bar = px.bar(x=months, y=y_vals, title="Mean Monthly P-ET")
         fig_bar.update_traces(marker_color=THEME_COLOR)
         fig_bar.update_layout(plot_bgcolor='white', font=dict(family="Segoe UI"))
-        explanation = _generate_explanation("P-ET", basin, ys, ye, y_vals, months)
     except:
         fig_bar = _empty_fig()
-        explanation = ""
-    return fig_map, fig_bar, dcc.Markdown(explanation, className="markdown-content")
+
+    return fig_map, fig_bar, dcc.Markdown(explanation, className="markdown-content", style={"textAlign": "justify"})
 
 def update_lu_map_and_coupling(basin):
     if not basin or basin == "none": return _empty_fig(), _empty_fig()
@@ -1667,7 +1756,94 @@ def update_land_use_table(basin):
     if df.empty:
         return html.Div("No Land Use details available.", style={"color": "#666"})
 
-    return dbc.Table.from_dataframe(df, striped=True, bordered=True, hover=True, responsive=True, style={"fontSize": "0.85rem"})
+    # Clean df: remove rows where Subclass (col 1) is empty
+    df = df[df.iloc[:, 1].astype(str).str.strip() != ""]
+
+    header = html.Thead(html.Tr([
+        html.Th("Water Management Class", style={"fontWeight": "bold", "backgroundColor": "#f8f9fa"}),
+        html.Th("Land and water use", style={"fontWeight": "bold", "backgroundColor": "#f8f9fa"}),
+        html.Th("Area (km2)", style={"fontWeight": "bold", "backgroundColor": "#f8f9fa"}),
+        html.Th("Area (km2)", style={"fontWeight": "bold", "backgroundColor": "#f8f9fa"}),
+        html.Th("Area (%)", style={"fontWeight": "bold", "backgroundColor": "#f8f9fa"}),
+        html.Th("P (mm)", style={"fontWeight": "bold", "backgroundColor": "#f8f9fa"}),
+        html.Th("ET (mm)", style={"fontWeight": "bold", "backgroundColor": "#f8f9fa"}),
+        html.Th("P-ET (mm)", style={"fontWeight": "bold", "backgroundColor": "#f8f9fa"}),
+    ]))
+
+    grouped = []
+    curr_class = None
+    curr_group = []
+
+    for _, row in df.iterrows():
+        cls = row.iloc[0]
+        if cls != curr_class:
+            if curr_group:
+                grouped.append((curr_class, curr_group))
+            curr_class = cls
+            curr_group = [row]
+        else:
+            curr_group.append(row)
+    if curr_group:
+        grouped.append((curr_class, curr_group))
+
+    total_area = 0.0
+    body_rows = []
+
+    # Colors matching the screenshot approximation
+    colors = {
+        "Natural": "#92aad1",      # Blue-ish
+        "Agricultural": "#a9d18e", # Green-ish
+        "Urban": "#f4b183"         # Orange-ish
+    }
+
+    for cls_name, group_rows in grouped:
+        rowspan = len(group_rows)
+        bg_color = colors.get(str(cls_name).strip(), "#ffffff")
+
+        for idx, row in enumerate(group_rows):
+            tr_children = []
+
+            # 1. Class (Merged)
+            if idx == 0:
+                tr_children.append(html.Td(cls_name, rowSpan=rowspan, style={"backgroundColor": bg_color, "verticalAlign": "middle", "fontWeight": "bold"}))
+
+            # 2. Subclass
+            tr_children.append(html.Td(row.iloc[1]))
+
+            # 3. Area Sub
+            try:
+                val = float(str(row.iloc[2]).replace(",", ""))
+                total_area += val
+                tr_children.append(html.Td(f"{val:.2f}"))
+            except (ValueError, TypeError):
+                tr_children.append(html.Td(row.iloc[2]))
+
+            # 4. Area Class (Merged) & 5. Area % (Merged)
+            if idx == 0:
+                tr_children.append(html.Td(row.iloc[3], rowSpan=rowspan, style={"verticalAlign": "middle", "textAlign": "center"}))
+                tr_children.append(html.Td(row.iloc[4], rowSpan=rowspan, style={"verticalAlign": "middle", "textAlign": "center"}))
+
+            # 6. P, 7. ET, 8. P-ET
+            tr_children.append(html.Td(row.iloc[5]))
+            tr_children.append(html.Td(row.iloc[6]))
+            tr_children.append(html.Td(row.iloc[7]))
+
+            body_rows.append(html.Tr(tr_children))
+
+    # Total Row
+    total_row = html.Tr([
+        html.Td(html.B("Total"), colSpan=2, style={"borderTop": "2px solid black"}),
+        html.Td(html.B(f"{total_area:.2f}"), style={"borderTop": "2px solid black"}),
+        html.Td(html.B(f"{total_area:.2f}"), style={"borderTop": "2px solid black", "textAlign": "center"}),
+        html.Td(html.B("100"), style={"borderTop": "2px solid black", "textAlign": "center"}),
+        html.Td("", style={"borderTop": "2px solid black"}),
+        html.Td("", style={"borderTop": "2px solid black"}),
+        html.Td("", style={"borderTop": "2px solid black"}),
+    ], style={"backgroundColor": "#ffffff"})
+
+    body_rows.append(total_row)
+
+    return html.Table([header, html.Tbody(body_rows)], className="table table-bordered table-sm table-hover", style={"fontSize": "0.85rem"})
 
 @app.callback(
     Output("intro-search-results", "children"),
