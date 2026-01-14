@@ -1,0 +1,11 @@
+Land use/land cover is a critical requirement for the WA+ framework since it directly affects the water balance. The WaPOR database contains yearly land use data from 2009 to present at a 100 m resolution. The WaPOR land use data  for 2015-2021 was selected for water accounting. A number of non-conventional water uses operate in the Mujib basin. This includes several Green House (GH) structures for agriculture. The WaPOR land use data does not distinguish greenhouses in its land use categories. As a result, GH areas were manually digitized (Figure 4) and incorporated into the yearly land cover maps. Satellite images covering the basin were downloaded and digitized to delineate the GHs that fall within the basin. These were then incorporated into the land use maps.  
+
+The WA+ land and water use categories were further simplified into 3 major land and water management classes:  
+
+1.Natural landscapes: these are land use classes where there is limited human intervention. These also include conservation zones. 
+
+2. Agricultural landscape: These are both rainfed and irrigated agricultural areas.  
+
+3. Urban landscapes: Areas of significant land modification which is not agricultural. These include paved surfaces, lots, and roads. 
+
+The resulting map (Figure 5) indicates different land and water use characteristics across the basin. Land use in the Mujib is primarily natural landscape accounting for 70% of the basin, agricultural land use comprises 23% of the basin and urban landscapes occupy 7% of the watershed (Table 1).Of the agricultural landscape, majority is rainfed and only 26 km2 is observed to be irrigated agriculture, excluding the green houses.
